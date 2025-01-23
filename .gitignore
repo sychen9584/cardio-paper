@@ -1,0 +1,26 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*.so
+
+# Environment files
+.env
+*.venv/
+*.envrc
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*.ipynb
+
+# Data files
+*.zip
+
+# Logs and reports
+*.log
+*.out
+
+# System and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
