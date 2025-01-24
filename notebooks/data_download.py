@@ -67,13 +67,14 @@ for folder in os.listdir(DATA_PATH):
 
 # %%
 # strip GSM prefix from individual data files within each sample directory
-prefix_pattern = r'^GSM\d+_\d+_(ATAC|GEX)_'
+#prefix_pattern = r'^GSM\d+_\d+_(ATAC|GEX)_'
+prefix_pattern = r'^features'
 
 for folder in os.listdir(DATA_PATH):
     folder_path = os.path.join(DATA_PATH, folder)
     if os.path.isdir(folder_path):
         for filename in os.listdir(folder_path):
-            new_name = re.sub(prefix_pattern, "", filename)
+            new_name = re.sub(prefix_pattern, "barcodes", filename)
             
             if new_name != filename:
                 old_path = os.path.join(folder_path, filename)
@@ -82,5 +83,21 @@ for folder in os.listdir(DATA_PATH):
                 print(f"Renamed: {filename} -> {new_name}")
             else:
                 print(f"Skipped: {filename} (does not match pattern)")
+
+# %%
+import pandas as pd
+from scipy.io import mmread
+
+# %%
+test = mmread(os.path.join(DATA_PATH, "scRNA_m3_s1/matrix.mtx.gz"))
+
+# %%
+test
+
+# %%
+test2 = pd.read_csv(os.path.join(DATA_PATH, "scRNA_m3_s1/barcodes.tsv.gz"), sep="\t", header=None)
+
+# %%
+test2
 
 # %%
