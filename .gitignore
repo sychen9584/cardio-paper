@@ -18,6 +18,7 @@ __pycache__/
 *.mtx
 *.tsv
 *.gtf
+*.h5ad
 
 # Logs and reports
 *.log

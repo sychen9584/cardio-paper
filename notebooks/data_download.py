@@ -83,21 +83,3 @@ for folder in os.listdir(DATA_PATH):
                 print(f"Renamed: {filename} -> {new_name}")
             else:
                 print(f"Skipped: {filename} (does not match pattern)")
-
-# %%
-import pandas as pd
-from scipy.io import mmread
-
-# %%
-test = mmread(os.path.join(DATA_PATH, "scRNA_m3_s1/matrix.mtx.gz"))
-
-# %%
-test
-
-# %%
-test2 = pd.read_csv(os.path.join(DATA_PATH, "scRNA_m3_s1/barcodes.tsv.gz"), sep="\t", header=None)
-
-# %%
-test2
-
-# %%
