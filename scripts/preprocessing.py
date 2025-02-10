@@ -4,6 +4,8 @@ import numpy as np
 import scanpy as sc
 import seaborn as sns
 import matplotlib.pyplot as plt
+import scipy
+import gc
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,13 +17,13 @@ sc.settings.set_figure_params(
     frameon=True,
 )
 
+
 def preprocess_adata(data_path: str,
                      sample_name: str,
                      figure_path: str,
                      min_genes: int = 1500,
                      max_genes: int = 7500,
-                     mt_threshold: int = 10,
-                     hvg_params: dict = None ) -> None:
+                     mt_threshold: int = 10) -> None:
     
     logging.info(f"Preprocessing {sample_name}...")
     
@@ -49,17 +51,19 @@ def preprocess_adata(data_path: str,
     # Normalizing to 10K counts
     normalize_and_log_transform(adata)
     
-    # Identify highly variable genes
-    identify_highly_variable_genes(adata, sample_figure_path)
-    
     # save preprocessed data
     save_preprocessed_data(adata, data_path, sample_name)
     
+    del adata
+    gc.collect()
+  
+  
 def load_data(data_path: str, sample_name: str) -> sc.AnnData:
     """Load the 10X Genomics data into an AnnData object."""
     logging.info(f"Loading data for {sample_name}...")
     adata = sc.read_10x_mtx(path=os.path.join(data_path, "raw", sample_name))
     return adata
+
 
 def calculate_qc_metrics(adata: sc.AnnData, figure_path: str) -> None:
     """Calculate QC metrics and create QC plots."""
@@ -80,6 +84,7 @@ def calculate_qc_metrics(adata: sc.AnnData, figure_path: str) -> None:
     sc.pl.scatter(adata, "total_counts", "n_genes_by_counts", color="pct_counts_mt", show=False)
     save_figure("qc_scatter_plot.png", figure_path)
     
+    
 def filter_cells(adata: sc.AnnData, min_genes: int, max_genes: int, mt_threshold: int) -> sc.AnnData:
     """Filter out low-quality cells based on gene counts and mitochondrial content."""
     logging.info("Filtering low-quality cells...")
@@ -88,11 +93,22 @@ def filter_cells(adata: sc.AnnData, min_genes: int, max_genes: int, mt_threshold
     adata = adata[adata.obs['pct_counts_mt'] < mt_threshold]
     return adata
 
+
 def normalize_and_log_transform(adata: sc.AnnData) -> None:
     """Normalize data to 10,000 counts and log-transform."""
     logging.info("Normalizing and log-transforming data...")
+    
+    if isinstance(adata.X, scipy.sparse.csc_matrix):
+        print(f"Converting .X to CSR format")
+        adata.X = adata.X.tocsr()
+    adata.layers["counts"] = adata.X.copy()
+    
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
+    
+    if isinstance(adata.X, scipy.sparse.csc_matrix):
+        print(f"Converting .X to CSR format")
+        adata.X = adata.X.tocsr() 
     adata.layers['lognormalized'] = adata.X.copy()
     adata.raw = adata.copy()
 
@@ -100,7 +116,7 @@ def normalize_and_log_transform(adata: sc.AnnData) -> None:
 def identify_highly_variable_genes(adata: sc.AnnData, figure_path: str, hvg_params: dict = None) -> None:
     """Identify highly variable genes and save a plot."""
     logging.info("Identifying highly variable genes...")
-    hvg_params = hvg_params or {"n_top_genes": 2000, "flavor": "seurat_v3"}
+    hvg_params = hvg_params or {"n_top_genes": 2000, "flavor": "seurat_v3", 'layer': 'counts'}
     sc.pp.highly_variable_genes(adata, **hvg_params)
     
     sc.pl.highly_variable_genes(adata, show=False)
@@ -112,8 +128,13 @@ def save_preprocessed_data(adata: sc.AnnData, data_path: str, sample_name: str) 
     logging.info(f"Saving preprocessed data for {sample_name}...")
     processed_path = os.path.join(data_path, "preprocessed", sample_name)
     os.makedirs(processed_path, exist_ok=True)
+        
+    if "counts" in adata.layers:
+        del adata.layers["counts"]
+        
     adata.write_h5ad(os.path.join(processed_path, f"{sample_name}_preprocessed.h5ad"))
     logging.info(f"Preprocessed data saved to {processed_path}.")
+
 
 def save_figure(fig_name, figure_path):
     """Save the current Matplotlib figure."""
