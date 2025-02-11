@@ -54,6 +54,7 @@ def preprocess_adata(data_path: str,
     # save preprocessed data
     save_preprocessed_data(adata, data_path, sample_name)
     
+    # remove object in environment to save RAM space
     del adata
     gc.collect()
   
@@ -98,18 +99,16 @@ def normalize_and_log_transform(adata: sc.AnnData) -> None:
     """Normalize data to 10,000 counts and log-transform."""
     logging.info("Normalizing and log-transforming data...")
     
-    if isinstance(adata.X, scipy.sparse.csc_matrix):
-        print(f"Converting .X to CSR format")
-        adata.X = adata.X.tocsr()
     adata.layers["counts"] = adata.X.copy()
+    adata.layers["counts"] = adata.layers["counts"].tocsr()
     
     sc.pp.normalize_total(adata, target_sum=1e4)
     sc.pp.log1p(adata)
     
-    if isinstance(adata.X, scipy.sparse.csc_matrix):
-        print(f"Converting .X to CSR format")
-        adata.X = adata.X.tocsr() 
     adata.layers['lognormalized'] = adata.X.copy()
+    adata.layers["lognormalized"] = adata.layers["lognormalized"].tocsr()
+    
+    adata.X = adata.X.tocsr()
     adata.raw = adata.copy()
 
 
@@ -129,8 +128,8 @@ def save_preprocessed_data(adata: sc.AnnData, data_path: str, sample_name: str) 
     processed_path = os.path.join(data_path, "preprocessed", sample_name)
     os.makedirs(processed_path, exist_ok=True)
         
-    if "counts" in adata.layers:
-        del adata.layers["counts"]
+    #if "counts" in adata.layers:
+        #del adata.layers["counts"]
         
     adata.write_h5ad(os.path.join(processed_path, f"{sample_name}_preprocessed.h5ad"))
     logging.info(f"Preprocessed data saved to {processed_path}.")
