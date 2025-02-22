@@ -1,13 +1,280 @@
 from typing import List, Union, Optional, Callable, Iterable
+import os
+import logging
 import numpy as np
 import pandas as pd
-from scanpy import logging
-from anndata import AnnData
-from mudata import MuData
+import scanpy as sc
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy
+import anndata
+import subprocess
+import muon as mu
+from muon import atac as ac
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+sc.settings.verbosity = 0
+sc.settings.set_figure_params(
+    dpi=80,
+    facecolor="white",
+    frameon=True,
+)
+
+def preprocess_atac_data(data_path: str,
+                         sample_name: str,
+                         figure_path: str,
+                         gene_annot_file: str,
+                         script_path: str,
+                         nuc_signal_threshold: int = 4,
+                         tss_threshold: int = 3,
+                         nuc_params: dict = None,
+                         tss_params: dict = None) -> None:
+    """
+    Preprocess ATAC-seq data for downstream analysis.
+    """
+    logging.info(f"Preprocessing {sample_name}...")
+    
+    # set up figure directory saving path
+    sample_figure_path = os.path.join(figure_path, sample_name, 'preprocess')
+    os.makedirs(sample_figure_path, exist_ok=True)
+    
+    # load data
+    logging.info("Loading ATAC-seq data from directory...")
+    adata = _load_atac_adata(data_path, sample_name)
+    
+    # locate fragments file
+    logging.info("Locating fragments...")
+    ac.tools.locate_fragments(adata, fragments=os.path.join(data_path, sample_name, "fragments.tsv.gz"))
+        
+    # HOMER annotation
+    logging.info("Annotating peaks with HOMER...")
+    homer_df = _homer_annotation(data_path, sample_name)
+    ac.tools.add_peak_annotation(adata, annotation=homer_df)
+    
+    # Save raw data as h5ad for scDblFinder
+    adata.write_h5ad(os.path.join(data_path, sample_name, "raw.h5ad"))
+    
+    # Run scDblFinder and append doublet scores to adata
+    logging.info("Running scDblFinder for doublet detection...")
+    _run_scdblfinder(script_path, data_path, sample_name)
+    dbl_scores = pd.read_csv(os.path.join(data_path, sample_name, "doublet_scores.csv")).set_index('barcode')
+    adata.obs['dbl_score'] = dbl_scores['doublet_score']
+    adata.obs['dbl_class'] = dbl_scores['doublet_class']
+    
+    # Calculate QC metrics
+    logging.info("Calculating scATAC-seq QC metrics...")
+    _calculate_qc_metrics(adata, gene_annot_file, sample_figure_path, nuc_signal_threshold, tss_threshold, nuc_params, tss_params)
+    
+    # Save preprocessed data
+    logging.info("Saving adata with QC metrics...")
+    adata.write_h5ad(os.path.join(data_path, sample_name, "qc_metrics.h5ad"))
+    
+
+def _load_atac_adata(data_path: str, sample_name: str) -> anndata.AnnData:
+    """
+    Load ATAC-seq data from the specified directory and return an AnnData object.
+    """
+    # Define the directory containing the ATAC-seq data
+    matrix_path = os.path.join(data_path, sample_name, "matrix.mtx.gz")
+
+    # Load the sparse peak-barcode matrix
+    mat = scipy.io.mmread(matrix_path).T.tocsc()  # Convert to CSC format for efficiency
+
+    # Load peak information (BED file)
+    peaks_path = os.path.join(data_path, sample_name, "peaks.bed.gz")
+    peaks = pd.read_csv(peaks_path, sep="\t", header=None, names=["chrom", "start", "end"])
+
+    # Load barcode metadata
+    barcodes_path = os.path.join(data_path, sample_name, "barcodes.tsv.gz")
+    barcodes = pd.read_csv(barcodes_path, sep="\t", header=None, names=["barcode"])
+
+    # Convert barcodes and peaks into the required format
+    barcodes.index = barcodes["barcode"]  # Set barcodes as index
+    peaks["peak_name"] = peaks['chrom'] + ":" + peaks['start'].astype(str) + "-" + peaks['end'].astype(str)
+    peaks.index = peaks["peak_name"]  # Set peaks as index
+
+    # Create AnnData object for ATAC-seq counts
+    adata_atac = anndata.AnnData(
+        X=mat,  # Sparse matrix
+        obs=barcodes,  # Barcodes (cells)
+        var=peaks  # Peaks (features)
+    )
+    
+    return adata_atac
+
+def _homer_annotation(data_path: str, sample_name: str) -> pd.DataFrame:
+    """
+    Annotate peaks with HOMER and wrangle the output into a 10X tsv format.
+    """
+    dir_path = os.path.join(data_path, sample_name)
+    bed_file = os.path.join(dir_path, "peaks.bed.gz")
+    bed_unzipped_file = os.path.join(dir_path, "peaks.bed")
+    annot_file = os.path.join(dir_path, "annotated_peaks.txt")
+    output_file = os.path.join(dir_path, "peak_annotations.tsv")
+    
+    # Check if output file already exists
+    if os.path.exists(output_file):
+        logging.info(f"Output file {output_file} already exists. Loading the file.")
+        return pd.read_csv(output_file, sep="\t")
+    
+    # Ensure input file exists
+    if not os.path.exists(bed_file):
+        raise FileNotFoundError(f"Input file {bed_file} does not exist.")
+    
+
+    # HOMER Bash script
+    bash_script = f"""
+    echo "Annotating peaks with HOMER..." && \
+    gunzip -c {bed_file} > {bed_unzipped_file} && \
+    annotatePeaks.pl {bed_unzipped_file} mm10 > {annot_file} && \
+    """
+    # Run the script
+    result = subprocess.run(bash_script, shell=True, text=True, capture_output=True)
+
+    # Check for errors
+    if result.returncode != 0:
+        raise RuntimeError(f"Error in HOMER annotation: {result.stderr}")
+
+    # Load HOMER annotation output and wrangle into 10X tsv format
+    homer_df = pd.read_csv(annot_file, sep="\t")
+    # Ensure required columns exist dynamically
+    required_columns = ["Chr", "Start", "End", "Nearest Ensembl", "Gene Name", "Distance to TSS", "Annotation"]
+    missing_columns = [col for col in required_columns if col not in homer_df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing expected columns in HOMER output: {missing_columns}")
+    
+    homer_df = homer_df.iloc[:, required_columns]
+    homer_df.columns = ['chrom', 'start', 'end', 'gene_id', 'gene', 'distance', 'peak_type']
+    homer_df['peak_type'] = homer_df['peak_type'].str.extract(r'([^\(]+)').squeeze().str.strip()
+    
+    # Standardize peak type classifications
+    peak_type_map = {
+        'intron': 'distal',
+        'exon': 'distal',
+        'promoter-TSS': 'promoter',
+        "5' UTR": 'distal',
+        'non-coding': 'distal',
+        'TTS': 'distal',
+        "3' UTR": 'distal'
+    }
+    homer_df['peak_type'] = homer_df['peak_type'].replace(peak_type_map).fillna('intergenic')
+    homer_df['start'] -= 1 # Convert to 0-based indexing
+    
+    homer_df.to_csv(output_file, sep="\t", index=False)
+    logging.info(f"Annotated peaks saved to {output_file}")
+
+    return homer_df
+        
+        
+def _run_scdblfinder(script_path: str, data_path: str, sample_name: str) -> pd.DataFrame:
+    '''
+    Run scDBLFinder on raw ATAC-seq data and save the output to a file.
+    '''
+    if not os.path.exists(script_path):
+        raise FileNotFoundError(f"R script not found: {script_path}")
+    
+    input_h5ad = os.path.join(data_path, sample_name, "raw.h5ad")
+    
+    command = ['Rscript', script_path, input_h5ad]
+    logging.info(command)
+    result = subprocess.run(command, text=True, capture_output=True)
+    
+    if result.returncode == 0:
+        logging.info("scDblFinder executed successfully!")
+    else:
+        raise RuntimeError(f"Error running scDblFinder R script: {result.stderr}")
+    
+def _calculate_qc_metrics(adata: anndata.AnnData, 
+                          gene_annot_file: str, 
+                          figure_path: str,
+                          nuc_signal_threshold: int = 4,
+                          tss_threshold: int = 3,
+                          nuc_params: dict = None,
+                          tss_params: dict = None) -> None:
+    
+    """
+    Calculate scATAC-seq QC metrics and generate diagnostic plots.
+    """
+    default_n = 10e3*adata.n_obs
+    nuc_params = nuc_params or {"n": default_n}
+    tss_params = tss_params or {"n_tss": 3000, "random_state": 42, 'layer': 'counts', 'extend_upstream': 2000, 'extend_downstream': 2000}
+    
+    # Calculate general qc metrics using scanpy
+    logging.info('--- General QC metrics')
+    sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
+    # log-transform total counts and add as column
+    adata.obs["log_total_fragment_counts"] = np.log10(adata.obs["total_fragment_counts"])
+
+    # Rename columns
+    adata.obs.rename(
+        columns={
+            "n_genes_by_counts": "n_features_per_cell",
+            "total_counts": "total_fragment_counts",
+        },
+        inplace=True,
+    )
+    
+    # QC Violin Plot
+    sc.pl.violin(adata, ['total_fragment_counts', 'n_features_per_cell'], jitter=0.4, multi_panel=True, show=False)
+    _save_figure("qc_violin_plot.png", figure_path)
+    
+    # Calculate nucleosome signal distribution across cells
+    logging.info('--- Nucleosome signal')
+    ac.tl.nucleosome_signal(adata, **nuc_params)
+    mu.pl.histogram(adata, "nucleosome_signal", show=False)
+    _save_figure("nucleosome_signal", figure_path)
+    
+    # Add group labels for above and below the nucleosome signal threshold
+    adata.obs["nuc_signal_filter"] = [
+        "NS_FAIL" if ns > nuc_signal_threshold else "NS_PASS"
+        for ns in adata.obs["nucleosome_signal"]
+    ]
+    
+    # TSS enrichment
+    logging.info('--- TSS enrichment')
+    gene_intervals = pd.read_csv(gene_annot_file, sep="\t")
+    tss = tss_enrichment(adata, features=gene_intervals, **tss_params)
+    
+    fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
+    # histogram of the TSS scores
+    p1 = sns.histplot(adata.obs, x="tss_score", ax=axs[0])
+    p1.set_title("Full range")
+
+    p2 = sns.histplot(
+        adata.obs,
+        x="tss_score",
+        binrange=(0, adata.obs["tss_score"].quantile(0.95)),
+        ax=axs[1],
+    )
+    p2.axvline(x=3)
+    p2.set_title("Up to 95% percentile")
+    plt.suptitle("Distribution of the TSS score")
+    plt.tight_layout()
+    _save_figure("tss_score_distribution.png", figure_path)
+    
+    tss.obs["tss_filter"] = [
+        "TSS_FAIL" if score < tss_threshold else "TSS_PASS"
+        for score in adata.obs["tss_score"]
+    ]
+
+    # Temporarily set different color palette
+    sns.set_palette(palette="Set1")
+    ac.pl.tss_enrichment(tss, color="tss_filter", show=False)
+    _save_figure("tss_enrichment.png", figure_path)
+    # reset color palette
+    sns.set_palette(palette="tab10")
+
+    
+def _save_figure(fig_name, figure_path):
+    """Save the current Matplotlib figure."""
+    plt.savefig(os.path.join(figure_path, fig_name), dpi=300, bbox_inches="tight")
+    plt.close()
 
 
 def tss_enrichment(
-    data: Union[AnnData, MuData],
+    data: Union[anndata.AnnData, mu.MuData],
     features: Optional[pd.DataFrame] = None,
     extend_upstream: int = 1000,
     extend_downstream: int = 1000,
@@ -100,12 +367,12 @@ def tss_enrichment(
 
     
 def _tss_pileup(
-    adata: AnnData,
+    adata: anndata.AnnData,
     features: pd.DataFrame,
     extend_upstream: int = 1000,
     extend_downstream: int = 1000,
     barcodes: Optional[str] = None,
-) -> AnnData:
+) -> anndata.AnnData:
     """
     Pile up reads in TSS regions while accounting for gene strand orientation.
     """
@@ -168,10 +435,10 @@ def _tss_pileup(
     )
     anno.index = anno.index.astype(str)
 
-    return AnnData(X=mx, obs=adata.obs, var=anno, dtype=int)
+    return anndata.AnnData(X=mx, obs=adata.obs, var=anno, dtype=int)
 
 
-def _calculate_tss_score(data: AnnData, flank_size: int = 100, center_size: int = 1001):
+def _calculate_tss_score(data: anndata.AnnData, flank_size: int = 100, center_size: int = 1001):
     """
     Calculate TSS enrichment scores (defined by ENCODE) for each cell.
 
@@ -209,7 +476,7 @@ def _calculate_tss_score(data: AnnData, flank_size: int = 100, center_size: int 
     return flank_means, center_means
 
 
-def get_gene_annotation_from_rna(data: Union[AnnData, MuData]) -> pd.DataFrame:
+def get_gene_annotation_from_rna(data: Union[anndata.AnnData, mu.MuData]) -> pd.DataFrame:
     """
     Get data frame with start and end positions from interval
     column of the 'rna' layers .var.

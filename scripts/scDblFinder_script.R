@@ -1,8 +1,3 @@
-# Load necessary libraries
-suppressPackageStartupMessages(library(zellkonverter))
-suppressPackageStartupMessages(library(SingleCellExperiment))
-suppressPackageStartupMessages(library(scDblFinder))
-
 # Get command-line arguments
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -10,6 +5,11 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 0) {
   stop("Usage: Rscript scDblFinder_script.R <input_h5ad_file>", call. = FALSE)
 }
+
+# Load necessary libraries
+suppressPackageStartupMessages(library(zellkonverter))
+suppressPackageStartupMessages(library(SingleCellExperiment))
+suppressPackageStartupMessages(library(scDblFinder))
 
 # Read input file path from command line
 input_file <- args[1]
