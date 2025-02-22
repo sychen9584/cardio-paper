@@ -1,5 +1,3 @@
-#!/usr/bin/env /home/sychen9584/miniconda3/envs/cardio/bin/Rscript
-
 # Load necessary libraries
 suppressPackageStartupMessages(library(zellkonverter))
 suppressPackageStartupMessages(library(SingleCellExperiment))
@@ -23,7 +21,7 @@ output_file <- file.path(output_dir, "doublet_scores.csv")
 
 # Read AnnData and convert to SingleCellExperiment
 sce <- readH5AD(input_file)
-counts_matrix <- as(assays(sce)[["X"]], "dgCMatrix") 
+counts_matrix <- as(assays(sce)[["X"]], "dgCMatrix")
 
 # Run scDblFinder
 sce <- scDblFinder(SingleCellExperiment(list(counts=counts_matrix)), clusters=TRUE, aggregateFeatures=TRUE, nfeatures=25, processing="normFeatures")

@@ -47,6 +47,10 @@ import subprocess
 import muon as mu
 from muon import atac as ac  # scATAC-seq processing
 
+import sys
+sys.path.append('../scripts')
+import scatac_preprocessing # replacement for muon implementation that accounts for strands
+
 # Set plotting preferences
 sc.settings.verbosity = 0
 sns.set(rc={"figure.figsize": (4, 3.5), "figure.dpi": 100})
@@ -76,8 +80,8 @@ barcodes = pd.read_csv(barcodes_path, sep="\t", header=None, names=["barcode"])
 
 # Convert barcodes and peaks into the required format
 barcodes.index = barcodes["barcode"]  # Set barcodes as index
-peaks["peak_id"] = ["peak_" + str(i) for i in range(len(peaks))]  # Generate unique peak IDs
-peaks.index = peaks["peak_id"]  # Set peaks as index
+peaks["peak_name"] = peaks['chrom'] + ":" + peaks['start'].astype(str) + "-" + peaks['end'].astype(str)
+peaks.index = peaks["peak_name"]  # Set peaks as index
 
 # Create AnnData object for ATAC-seq counts
 adata_atac = anndata.AnnData(
@@ -85,9 +89,6 @@ adata_atac = anndata.AnnData(
     obs=barcodes,  # Barcodes (cells)
     var=peaks  # Peaks (features)
 )
-
-# %%
-adata_atac
 
 # %% [markdown]
 # ## Add fragment files to adata object
@@ -126,8 +127,8 @@ else:
 # %%
 # Load HOMER annotation output and wrangle into 10X tsv format
 homer_df = pd.read_csv(annot_path, sep="\t")
-homer_df = homer_df.iloc[:, [1, 2, 3, 15, 9, 7]]
-homer_df.columns = ['chrom', 'start', 'end', 'gene', 'distance', 'peak_type']
+homer_df = homer_df.iloc[:, [1, 2, 3, 14, 15, 9, 7]]
+homer_df.columns = ['chrom', 'start', 'end', 'gene_id', 'gene', 'distance', 'peak_type']
 homer_df['peak_type'] = homer_df['peak_type'].str.extractall(r'^(.*?)(?=\s\()').unstack()
 homer_df['peak_type'] = homer_df['peak_type'].fillna('intergenic')
 homer_df['peak_type'] = homer_df['peak_type'].replace({
@@ -137,6 +138,7 @@ homer_df['peak_type'] = homer_df['peak_type'].replace({
     "5' UTR": 'distal', 'non-coding': 'distal',
     'TTS': 'distal', "3' UTR": 'distal'
 })
+homer_df['start'] = homer_df['start'] - 1
 
 # %%
 homer_df.to_csv(os.path.join(dir_path, "peak_annotations.tsv"), sep="\t", index=False)
@@ -149,6 +151,9 @@ adata_atac.write_h5ad(os.path.join(DATA_PATH, SAMPLE_NAME, "raw.h5ad"))
 
 # %% [markdown]
 # # Doublet Removal
+
+# %%
+adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, SAMPLE_NAME, "raw.h5ad"))
 
 # %%
 # used a R script to run scDblFinder
@@ -201,34 +206,22 @@ adata_atac.obs["nuc_signal_filter"].value_counts()
 gene_intervals = pd.read_csv('/home/sychen9584/projects/cardio_paper/data/ref/gene_intervals.csv')
 
 # %%
-gene_intervals
-
-# %%
-gene_intervals_positive = gene_intervals.query('Strand == "-"')
-
-# %%
-tss = ac.tl.tss_enrichment(adata_atac, features=gene_intervals_positive, n_tss=3000, random_state=666, extend_upstream=2000, extend_downstream=2000)
+tss = scatac_preprocessing.tss_enrichment(adata_atac, features=gene_intervals, n_tss=3000, random_state=666, extend_upstream=2000, extend_downstream=2000)
 
 # %%
 fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
 
-p1 = sns.histplot(
-    adata_atac.obs,
-    x="tss_score",
-    binrange=(0, adata_atac.obs["tss_score"].quantile(0.95)),
-    bins=100, 
-    ax=axs[0],
-)
-p1.set_title("Up to 90% percentile")
+p1 = sns.histplot(adata_atac.obs, x="tss_score", ax=axs[0])
+p1.set_title("Full range")
 
 p2 = sns.histplot(
     adata_atac.obs,
     x="tss_score",
-    binrange=(0, adata_atac.obs["tss_score"].quantile(0.75)),
-    bins=100,
+    binrange=(0, adata_atac.obs["tss_score"].quantile(0.95)),
     ax=axs[1],
 )
-p2.set_title("Up to 50% percentile")
+p2.axvline(x=3)
+p2.set_title("Up to 95% percentile")
 
 plt.suptitle("Distribution of the TSS score")
 
@@ -236,7 +229,7 @@ plt.tight_layout()
 plt.show()
 
 # %%
-tss_threshold = 2
+tss_threshold = 3
 tss.obs["tss_filter"] = [
     "TSS_FAIL" if score < tss_threshold else "TSS_PASS"
     for score in adata_atac.obs["tss_score"]
@@ -260,10 +253,10 @@ sns.set_palette(palette="tab10")
 adata_atac.obs["log_total_fragment_counts"] = np.log10(adata_atac.obs["total_fragment_counts"])
 
 # %%
-plot_tss_max = 1
-count_cutoff_lower = 10000
-lcount_cutoff_upper = 60000
-tss_cutoff_lower = 0.03
+plot_tss_max = 20
+count_cutoff_lower = 5000
+lcount_cutoff_upper = 100000
+tss_cutoff_lower = 4
 
 # Scatter plot & histograms
 g = sns.jointplot(
@@ -298,17 +291,21 @@ print(f"Total number of cells: {adata_atac.n_obs}")
 mu.pp.filter_obs(
     adata_atac,
     "total_fragment_counts",
-    lambda x: (x >= 10000) & (x <= 60000),
+    lambda x: (x >= 5000) & (x <= 100000),
 )
 print(f"Number of cells after filtering on fragment_counts: {adata_atac.n_obs}")
 
 # %%
-mu.pp.filter_obs(adata_atac, "nucleosome_signal", lambda x: x <= 2)
+mu.pp.filter_obs(adata_atac, "nucleosome_signal", lambda x: x <= 4)
 print(f"Number of cells after filtering on nucleosome_signal: {adata_atac.n_obs}")
 
 # %%
 mu.pp.filter_obs(adata_atac, "dbl_class", lambda x: x == "singlet")
 print(f"Number of cells after filtering doublets: {adata_atac.n_obs}")
+
+# %%
+mu.pp.filter_obs(adata_atac, "tss_score", lambda x: x >= 3)
+print(f"Number of cells after on TSS enrichment score: {adata_atac.n_obs}")
 
 # %% [markdown]
 # # TF-IDF Normalization
@@ -346,12 +343,48 @@ sc.tl.leiden(adata_atac, resolution=0.8)
 sc.pl.umap(adata_atac, color=["leiden", "n_features_per_cell"], legend_loc="on data")
 
 # %%
+ac.pl.umap(adata_atac, color=["Gsn", "Lyz2", "Egfl7"], average="total", use_raw=False)
+
+# %% [markdown]
+# # Gene activity matrix
+
+# %%
+gene_intervals = pd.read_csv('/home/sychen9584/projects/cardio_paper/data/ref/gene_intervals.csv')
+
+# %%
+gene_intervals_filtered = gene_intervals[gene_intervals['Chromosome'].str.startswith('chr')]
+gene_intervals_filtered = gene_intervals_filtered[gene_intervals_filtered['Chromosome'] != "chrM"]
+
+# %%
+adata_atac_gene = ac.tl.count_fragments_features(adata_atac, features=gene_intervals_filtered, stranded=True)
+
+# %%
+# # copy some data over from the original adata object
+adata_atac_gene.var = adata_atac_gene.var.set_index('gene_name')
+adata_atac_gene.uns['leiden_colors'] = adata_atac.uns['leiden_colors'].copy()
+adata_atac_gene.obsm['X_lsi'] = adata_atac.obsm['X_lsi'] .copy()
+adata_atac_gene.obsm['X_umap'] = adata_atac.obsm['X_umap'] .copy()
+
+# %%
+adata_atac_gene.layers['count'] = adata_atac_gene.X.copy()
+# Normalizing to 10K counts
+sc.pp.normalize_total(adata_atac_gene, target_sum=10000)
+# Logarithmize the data
+sc.pp.log1p(adata_atac_gene)
 
 # %%
 # we can use the functionality of the ATAC module in muon to color plots by cut values in peaks correspoonding to a certain gene
-ac.pl.umap(adata_atac, color=["KLF4"], average="peak_type")
+sc.pl.umap(adata_atac_gene, color=["Gsn", "Lyz2", "Egfl7", 'leiden'])
 
 # %%
-adata_atac.var
+adata_atac_gene.var.index = adata_atac_gene.var.index.astype(str)
+adata_atac_gene.var_names_make_unique()
 
 # %%
+sc.pl.violin(adata_atac_gene, keys=["Gsn", "Lyz2", "Egfl7"], groupby="leiden")
+
+# %%
+adata_atac_gene.write_h5ad("gene_activity.h5ad")
+
+# %%
+adata_atac.write_h5ad("preprocessed.h5ad", compression=False)

@@ -77,12 +77,15 @@ df["gene_id"] = df["Attributes"].str.extract(r'gene_id "([^"]+)"')
 df["gene_name"] = df["Attributes"].str.extract(r'gene_name "([^"]+)"')
 
 # Filter for transcript-level entries only (to avoid multiple exon/CDS entries)
-df_transcripts = df[df["Feature"] == "transcript"]
+df_transcripts = df[df["Feature"] == "transcript"].copy()
 # Preserve the order by creating an index column
 df_transcripts["Original_Order"] = df_transcripts.index
 
+df_transcripts['Start'] = df_transcripts['Start'].astype(int)
+df_transcripts['End'] = df_transcripts['End'].astype(int)
+
 # Group by gene_id while keeping order based on first occurrence
-df_genes = df_transcripts.groupby(["gene_id", "gene_name", "Chromosome"], sort=False).agg(
+df_genes = df_transcripts.groupby(["gene_id", "gene_name", "Chromosome", "Strand"], sort=False).agg(
     Start=("Start", "min"),
     End=("End", "max"),
     Order=("Original_Order", "min")  # Preserve first occurrence order
@@ -93,9 +96,15 @@ df_genes = df_genes.sort_values(by="Order").drop(columns=["Order"])
 
 
 # %%
-df_genes = df_genes[['Chromosome', "Start", "End", 'gene_id', 'gene_name']]
+df_genes = df_genes[['Chromosome', "Start", "End", "Strand", 'gene_id', 'gene_name']]
+
+# %%
+df_genes
 
 # %%
 df_genes.to_csv(os.path.join(DATA_PATH, "ref/gene_intervals.csv"), header=True, index=False)
+
+# %%
+df.query('gene_name == "Lypla1"')
 
 # %%
