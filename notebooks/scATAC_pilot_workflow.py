@@ -20,22 +20,8 @@
 # ## Using 3 months sample 1 as pilot
 
 # %%
-# Load R-Python bridge FIRST
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-from rpy2.robjects import r
-from rpy2.robjects.conversion import localconverter
-import anndata2ri
-
-# Activate conversion BEFORE loading other libraries
-pandas2ri.activate()
-#anndata2ri.activate()
-
-# Load Jupyter R magic extension
-# %load_ext rpy2.ipython
-
-# Now import other packages
 import os
+import logging
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -58,7 +44,7 @@ sns.set_style("whitegrid")
 
 # %%
 DATA_PATH = "/home/sychen9584/projects/cardio_paper/data/raw"
-SAMPLE_NAME = "scATAC_m3_s1"
+SAMPLE_NAME = "scATAC_m12_s2"
 
 # %% [markdown]
 # # Load in adata object

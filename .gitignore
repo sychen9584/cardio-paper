@@ -22,6 +22,7 @@ __pycache__/
 *.bed
 *.csv
 *.tbi
+*.txt
 
 # Logs and reports
 *.log

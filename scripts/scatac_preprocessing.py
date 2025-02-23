@@ -46,7 +46,7 @@ def preprocess_atac_data(data_path: str,
     
     # locate fragments file
     logging.info("Locating fragments...")
-    ac.tools.locate_fragments(adata, fragments=os.path.join(data_path, sample_name, "fragments.tsv.gz"))
+    ac.tools.locate_fragments(adata, fragments=os.path.join(data_path, 'raw', sample_name, "fragments.tsv.gz"))
         
     # HOMER annotation
     logging.info("Annotating peaks with HOMER...")
@@ -54,12 +54,12 @@ def preprocess_atac_data(data_path: str,
     ac.tools.add_peak_annotation(adata, annotation=homer_df)
     
     # Save raw data as h5ad for scDblFinder
-    adata.write_h5ad(os.path.join(data_path, sample_name, "raw.h5ad"))
+    adata.write_h5ad(os.path.join(data_path, 'raw', sample_name, "raw.h5ad"))
     
     # Run scDblFinder and append doublet scores to adata
     logging.info("Running scDblFinder for doublet detection...")
     _run_scdblfinder(script_path, data_path, sample_name)
-    dbl_scores = pd.read_csv(os.path.join(data_path, sample_name, "doublet_scores.csv")).set_index('barcode')
+    dbl_scores = pd.read_csv(os.path.join(data_path, 'raw', sample_name, "doublet_scores.csv")).set_index('barcode')
     adata.obs['dbl_score'] = dbl_scores['doublet_score']
     adata.obs['dbl_class'] = dbl_scores['doublet_class']
     
@@ -69,7 +69,7 @@ def preprocess_atac_data(data_path: str,
     
     # Save preprocessed data
     logging.info("Saving adata with QC metrics...")
-    adata.write_h5ad(os.path.join(data_path, sample_name, "qc_metrics.h5ad"))
+    adata.write_h5ad(os.path.join(data_path, 'raw', sample_name, "qc_metrics.h5ad"))
     
 
 def _load_atac_adata(data_path: str, sample_name: str) -> anndata.AnnData:
@@ -77,17 +77,17 @@ def _load_atac_adata(data_path: str, sample_name: str) -> anndata.AnnData:
     Load ATAC-seq data from the specified directory and return an AnnData object.
     """
     # Define the directory containing the ATAC-seq data
-    matrix_path = os.path.join(data_path, sample_name, "matrix.mtx.gz")
+    matrix_path = os.path.join(data_path, 'raw', sample_name, "matrix.mtx.gz")
 
     # Load the sparse peak-barcode matrix
     mat = scipy.io.mmread(matrix_path).T.tocsc()  # Convert to CSC format for efficiency
 
     # Load peak information (BED file)
-    peaks_path = os.path.join(data_path, sample_name, "peaks.bed.gz")
+    peaks_path = os.path.join(data_path, 'raw', sample_name, "peaks.bed.gz")
     peaks = pd.read_csv(peaks_path, sep="\t", header=None, names=["chrom", "start", "end"])
 
     # Load barcode metadata
-    barcodes_path = os.path.join(data_path, sample_name, "barcodes.tsv.gz")
+    barcodes_path = os.path.join(data_path, 'raw', sample_name, "barcodes.tsv.gz")
     barcodes = pd.read_csv(barcodes_path, sep="\t", header=None, names=["barcode"])
 
     # Convert barcodes and peaks into the required format
@@ -108,7 +108,7 @@ def _homer_annotation(data_path: str, sample_name: str) -> pd.DataFrame:
     """
     Annotate peaks with HOMER and wrangle the output into a 10X tsv format.
     """
-    dir_path = os.path.join(data_path, sample_name)
+    dir_path = os.path.join(data_path, 'raw', sample_name)
     bed_file = os.path.join(dir_path, "peaks.bed.gz")
     bed_unzipped_file = os.path.join(dir_path, "peaks.bed")
     annot_file = os.path.join(dir_path, "annotated_peaks.txt")
@@ -123,12 +123,11 @@ def _homer_annotation(data_path: str, sample_name: str) -> pd.DataFrame:
     if not os.path.exists(bed_file):
         raise FileNotFoundError(f"Input file {bed_file} does not exist.")
     
-
     # HOMER Bash script
     bash_script = f"""
     echo "Annotating peaks with HOMER..." && \
     gunzip -c {bed_file} > {bed_unzipped_file} && \
-    annotatePeaks.pl {bed_unzipped_file} mm10 > {annot_file} && \
+    annotatePeaks.pl {bed_unzipped_file} mm10 > {annot_file}
     """
     # Run the script
     result = subprocess.run(bash_script, shell=True, text=True, capture_output=True)
@@ -145,7 +144,7 @@ def _homer_annotation(data_path: str, sample_name: str) -> pd.DataFrame:
     if missing_columns:
         raise ValueError(f"Missing expected columns in HOMER output: {missing_columns}")
     
-    homer_df = homer_df.iloc[:, required_columns]
+    homer_df = homer_df.loc[:, required_columns]
     homer_df.columns = ['chrom', 'start', 'end', 'gene_id', 'gene', 'distance', 'peak_type']
     homer_df['peak_type'] = homer_df['peak_type'].str.extract(r'([^\(]+)').squeeze().str.strip()
     
@@ -172,13 +171,16 @@ def _run_scdblfinder(script_path: str, data_path: str, sample_name: str) -> pd.D
     '''
     Run scDBLFinder on raw ATAC-seq data and save the output to a file.
     '''
+    if os.path.exists(os.path.join(data_path, 'raw', sample_name, "doublet_scores.csv")):
+        logging.info("scDblFinder output already exists. Skipping execution.")
+        return
+    
     if not os.path.exists(script_path):
         raise FileNotFoundError(f"R script not found: {script_path}")
     
-    input_h5ad = os.path.join(data_path, sample_name, "raw.h5ad")
+    input_h5ad = os.path.join(data_path, 'raw', sample_name, "raw.h5ad")
     
     command = ['Rscript', script_path, input_h5ad]
-    logging.info(command)
     result = subprocess.run(command, text=True, capture_output=True)
     
     if result.returncode == 0:
@@ -186,8 +188,8 @@ def _run_scdblfinder(script_path: str, data_path: str, sample_name: str) -> pd.D
     else:
         raise RuntimeError(f"Error running scDblFinder R script: {result.stderr}")
     
-def _calculate_qc_metrics(adata: anndata.AnnData, 
-                          gene_annot_file: str, 
+def _calculate_qc_metrics(adata: anndata.AnnData,
+                          gene_annot_file: str,
                           figure_path: str,
                           nuc_signal_threshold: int = 4,
                           tss_threshold: int = 3,
@@ -199,14 +201,12 @@ def _calculate_qc_metrics(adata: anndata.AnnData,
     """
     default_n = 10e3*adata.n_obs
     nuc_params = nuc_params or {"n": default_n}
-    tss_params = tss_params or {"n_tss": 3000, "random_state": 42, 'layer': 'counts', 'extend_upstream': 2000, 'extend_downstream': 2000}
+    tss_params = tss_params or {"n_tss": 3000, "random_state": 42, 'extend_upstream': 2000, 'extend_downstream': 2000}
     
     # Calculate general qc metrics using scanpy
     logging.info('--- General QC metrics')
     sc.pp.calculate_qc_metrics(adata, percent_top=None, log1p=False, inplace=True)
-    # log-transform total counts and add as column
-    adata.obs["log_total_fragment_counts"] = np.log10(adata.obs["total_fragment_counts"])
-
+    
     # Rename columns
     adata.obs.rename(
         columns={
@@ -215,6 +215,8 @@ def _calculate_qc_metrics(adata: anndata.AnnData,
         },
         inplace=True,
     )
+    # log-transform total counts and add as column
+    adata.obs["log_total_fragment_counts"] = np.log10(adata.obs["total_fragment_counts"])
     
     # QC Violin Plot
     sc.pl.violin(adata, ['total_fragment_counts', 'n_features_per_cell'], jitter=0.4, multi_panel=True, show=False)
@@ -234,7 +236,7 @@ def _calculate_qc_metrics(adata: anndata.AnnData,
     
     # TSS enrichment
     logging.info('--- TSS enrichment')
-    gene_intervals = pd.read_csv(gene_annot_file, sep="\t")
+    gene_intervals = pd.read_csv(gene_annot_file)
     tss = tss_enrichment(adata, features=gene_intervals, **tss_params)
     
     fig, axs = plt.subplots(1, 2, figsize=(7, 3.5))
@@ -258,13 +260,6 @@ def _calculate_qc_metrics(adata: anndata.AnnData,
         "TSS_FAIL" if score < tss_threshold else "TSS_PASS"
         for score in adata.obs["tss_score"]
     ]
-
-    # Temporarily set different color palette
-    sns.set_palette(palette="Set1")
-    ac.pl.tss_enrichment(tss, color="tss_filter", show=False)
-    _save_figure("tss_enrichment.png", figure_path)
-    # reset color palette
-    sns.set_palette(palette="tab10")
 
     
 def _save_figure(fig_name, figure_path):
@@ -315,9 +310,9 @@ def tss_enrichment(
 
 
     """
-    if isinstance(data, AnnData):
+    if isinstance(data, anndata.AnnData):
         adata = data
-    elif isinstance(data, MuData) and "atac" in data.mod:
+    elif isinstance(data, mu.MuData) and "atac" in data.mod:
         adata = data.mod["atac"]
     else:
         raise TypeError("Expected AnnData or MuData object with 'atac' modality")
@@ -325,7 +320,7 @@ def tss_enrichment(
     if features is None:
         # Try to gene gene annotation in the data.mod['rna']
         if (
-            isinstance(data, MuData)
+            isinstance(data, mu.MuData)
             and "rna" in data.mod
             and "interval" in data.mod["rna"].var.columns
         ):
@@ -357,7 +352,7 @@ def tss_enrichment(
     adata.obs["tss_score"] = tss_scores
     tss_pileup.obs["tss_score"] = tss_scores
 
-    if isinstance(data, AnnData):
+    if isinstance(data, anndata.AnnData):
         logging.info('Added a "tss_score" column to the .obs slot of the AnnData object')
     else:
         logging.info("Added a \"tss_score\" column to the .obs slot of tof the 'atac' modality")
@@ -487,9 +482,9 @@ def get_gene_annotation_from_rna(data: Union[anndata.AnnData, mu.MuData]) -> pd.
             MuData object
     """
 
-    if isinstance(data, AnnData):
+    if isinstance(data, annData.AnnData):
         adata = data
-    elif isinstance(data, MuData) and "rna" in data.mod:
+    elif isinstance(data, mu.MuData) and "rna" in data.mod:
         adata = data.mod["rna"]
     else:
         raise TypeError("Expected AnnData or MuData object with 'rna' modality")
@@ -507,3 +502,26 @@ def get_gene_annotation_from_rna(data: Union[anndata.AnnData, mu.MuData]) -> pd.
     else:
         raise ValueError(".var object does not have a column named interval")
     return features
+
+def fragment_tss_joint_plot(adata: anndata.AnnData, count_cutoff_lower: int, count_cutoff_upper: int, tss_cutoff_lower: int, plot_tss_max: int = 20):
+    """
+    Create a joint plot of log-transformed total fragment counts and TSS scores.
+    """
+
+    g = sns.jointplot(
+        data=adata[(adata.obs["tss_score"] < plot_tss_max)].obs,
+        x="log_total_fragment_counts",
+        y="tss_score",
+        color="black",
+        marker=".",
+    )
+    # Density plot including lines
+    g.plot_joint(sns.kdeplot, fill=True, cmap="Blues", zorder=1, alpha=0.75)
+    g.plot_joint(sns.kdeplot, color="black", zorder=2, alpha=0.75)
+
+    # Lines thresholds
+    plt.axvline(x=np.log10(count_cutoff_lower), c="red")
+    plt.axvline(x=np.log10(count_cutoff_upper), c="red")
+    plt.axhline(y=tss_cutoff_lower, c="red")
+    
+    return g
