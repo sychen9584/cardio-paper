@@ -170,7 +170,7 @@ for sample in scATAC_samples:
     adata_paths[sample] = os.path.join(DATA_PATH, "preprocessed", sample, "unified.h5ad")
 
 # %%
-anndata.experimental.concat_on_disk(in_files=adata_paths, out_file=os.path.join(DATA_PATH, "scATAC_all.h5ad"), label="sample_name", join="outer")
+anndata.experimental.concat_on_disk(in_files=adata_paths, out_file=os.path.join(DATA_PATH, "scATAC_all.h5ad"), label="sample_name", join="outer", index_unique="_")
 
 # %% [markdown]
 # # Dimensional Reduction and Clustering the combined anndata object
@@ -212,5 +212,69 @@ sc.pl.umap(adata, color=["leiden", "n_features_per_cell"], legend_loc="on data")
 
 # %%
 adata.write_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
+
+# %% [markdown]
+# # Gene activity matrix
+
+# %%
+adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
+
+# %%
+gene_intervals = pd.read_csv('/home/sychen9584/projects/cardio_paper/data/ref/gene_intervals.csv')
+gene_intervals_filtered = gene_intervals[gene_intervals['Chromosome'].str.startswith('chr')]
+gene_intervals_filtered = gene_intervals_filtered[gene_intervals_filtered['Chromosome'] != "chrM"]
+
+# %%
+for sample in scATAC_samples:
+    logging.info(f"Counting fragments for {sample}----------------------------------")
+    adata = sc.read_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "unified.h5ad"))
+    ac.tl.locate_fragments(adata, fragments=os.path.join(DATA_PATH, 'raw', sample, 'fragments.tsv.gz'))
+    adata_gene = ac.tl.count_fragments_features(adata, features=gene_intervals_filtered, stranded=True)
+    adata_gene.write_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "gene_activity.h5ad"))
+
+# %%
+adatas = {}
+for sample in scATAC_samples:
+    adata = sc.read_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "gene_activity.h5ad"))
+    adata.X = adata.X.astype(np.int32)
+    adatas.update({sample: adata})
+
+# %%
+adata_gene = anndata.concat(adatas, label="sample_name", index_unique="_", merge="same")
+
+# %%
+# # copy some data over from the original adata object
+adata_gene.var = adata_gene.var.set_index('gene_name')
+adata_gene.var.index = adata_gene.var.index.astype(str)
+adata_gene.var_names_make_unique()
+
+# %%
+adata_gene.uns['leiden_colors'] = adata_atac.uns['leiden_colors'].copy()
+adata_gene.obsm['X_pca_harmony'] = adata_atac.obsm['X_pca_harmony'].copy()
+adata_gene.obsm['X_umap'] = adata_atac.obsm['X_umap'].copy()
+adata_gene.obs['leiden'] = adata_atac.obs['leiden'].copy()
+
+# %%
+adata_gene.obs['barcode'] = adata_gene.obs.index.astype(str)
+
+# %%
+adata_gene.write_h5ad(os.path.join(DATA_PATH, "scATAC_all_gene_activity.h5ad"), compression="gzip")
+
+# %%
+adata_gene.layers['count'] = adata_gene.X.copy()
+# Normalizing to 10K counts
+sc.pp.normalize_total(adata_gene, target_sum=10000)
+# Logarithmize the data
+sc.pp.log1p(adata_gene)
+
+# %%
+# we can use the functionality of the ATAC module in muon to color plots by cut values in peaks correspoonding to a certain gene
+sc.pl.umap(adata_gene, color=["Gsn", "Lyz2", "Egfl7", 'leiden'])
+
+# %%
+sc.pl.violin(adata_gene, keys=["Gsn", "Ctss", "Egfl7"], groupby="leiden")
+
+# %%
+adata_gene.write_h5ad("scATAC_all_gene_activity.h5ad", compression="gzip")
 
 # %%

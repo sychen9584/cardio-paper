@@ -371,6 +371,3 @@ sc.pl.violin(adata_atac_gene, keys=["Gsn", "Lyz2", "Egfl7"], groupby="leiden")
 
 # %%
 adata_atac_gene.write_h5ad("gene_activity.h5ad")
-
-# %%
-adata_atac.write_h5ad("preprocessed.h5ad", compression=False)
