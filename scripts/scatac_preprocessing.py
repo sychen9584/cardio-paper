@@ -67,6 +67,11 @@ def preprocess_atac_data(data_path: str,
     logging.info("Calculating scATAC-seq QC metrics...")
     _calculate_qc_metrics(adata, gene_annot_file, sample_figure_path, nuc_signal_threshold, tss_threshold, nuc_params, tss_params)
     
+    # Convert .X matrix to CSR format to enable concat on disk
+    logging.info("Converting .X matrix to CSR format to enable concat on disk...")
+    adata.X = adata.X.tocsr()
+    adata.raw = adata.copy()
+    
     # Save preprocessed data
     logging.info("Saving adata with QC metrics...")
     adata.write_h5ad(os.path.join(data_path, 'raw', sample_name, "qc_metrics.h5ad"))
@@ -525,3 +530,71 @@ def fragment_tss_joint_plot(adata: anndata.AnnData, count_cutoff_lower: int, cou
     plt.axhline(y=tss_cutoff_lower, c="red")
     
     return g
+
+def filter_atac_adata(adata: anndata.AnnData, 
+                      count_cutoff_lower: int, 
+                      count_cutoff_upper: int,
+                      nuclesome_threshold: int,
+                      tss_threshold: int) -> anndata.AnnData:
+    """
+    Filter ATAC-seq data based on QC metrics.
+    """
+    
+    logging.info(f"Total number of cells: {adata.n_obs}")
+    mu.pp.filter_obs(
+        adata,
+        "total_fragment_counts",
+        lambda x: (x >= count_cutoff_lower) & (x <= count_cutoff_upper)
+    )
+        
+    logging.info(f"Number of cells after filtering on fragment_counts: {adata.n_obs}")
+
+    mu.pp.filter_obs(adata, "nucleosome_signal", lambda x: x <= nuclesome_threshold)
+    logging.info(f"Number of cells after filtering on nucleosome_signal: {adata.n_obs}")
+    
+    mu.pp.filter_obs(adata, "tss_score", lambda x: x >= tss_threshold)
+    logging.info(f"Number of cells after on TSS enrichment score: {adata.n_obs}")
+    
+    mu.pp.filter_obs(adata, "dbl_class", lambda x: x == "singlet")
+    logging.info(f"Number of cells after filtering doublets: {adata.n_obs}")
+    
+
+def map_unified_peaks(adata: anndata.AnnData, peak_mapping: pd.DataFrame) -> anndata.AnnData:
+    """
+    Efficiently map peaks in the adata object to the unified peak set using sparse matrix operations.
+
+    Parameters:
+    - adata: AnnData object with original peaks
+    - peak_mapping: DataFrame with columns ["original_peak", "merged_peak"]
+
+    Returns:
+    - New AnnData object aligned to the unified peak set (optimized for large datasets)
+    """
+    # Convert peak lists to Pandas Index for fast lookup (O(1) time complexity)
+    original_peak_index = pd.Index(adata.var_names)  # All original peaks
+    mapped_peak_index = pd.Index(peak_mapping["original_peak"].values)  # Peaks to map
+
+    # Get indices of matching peaks using hash-based lookup
+    original_idx = original_peak_index.get_indexer(mapped_peak_index)
+
+    # Remove -1 values (peaks that were not found)
+    valid_idx = original_idx >= 0
+    original_idx = original_idx[valid_idx]
+
+    # Get the corresponding merged peak names
+    merged_peak_names = peak_mapping.loc[valid_idx, "merged_peak"].values
+
+    # Get unique merged peaks and their new index mapping
+    unique_merged_peaks, merged_idx = np.unique(merged_peak_names, return_inverse=True)
+
+    # Create a **mapping matrix** that maps original peaks to merged peaks
+    mapping_matrix = scipy.sparse.csr_matrix((np.ones(len(original_idx)), (original_idx, merged_idx)), 
+                                             shape=(len(original_peak_index), len(unique_merged_peaks)))
+
+    # Perform sparse matrix multiplication to correctly sum counts
+    new_X = adata.X @ mapping_matrix
+
+    # Create new AnnData object with updated peak set
+    new_adata = anndata.AnnData(X=new_X, obs=adata.obs.copy(), var=pd.DataFrame(index=unique_merged_peaks))
+
+    return new_adata
