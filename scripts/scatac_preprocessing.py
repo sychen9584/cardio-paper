@@ -598,3 +598,72 @@ def map_unified_peaks(adata: anndata.AnnData, peak_mapping: pd.DataFrame) -> ann
     new_adata = anndata.AnnData(X=new_X, obs=adata.obs.copy(), var=pd.DataFrame(index=unique_merged_peaks))
 
     return new_adata
+
+
+def calculate_gene_activity(adata):
+    """
+    Computes gene activity scores for scATAC-seq using sparse matrix multiplication.
+
+    Parameters:
+    -----------
+    adata : AnnData
+        The scATAC-seq AnnData object with peak accessibility in .X.
+
+    Returns:
+    --------
+    adata_gene : AnnData
+        AnnData object containing the gene activity matrix.
+    """
+
+    logging.info("Ensuring sparse representation of .X...")
+    # Ensure `adata.X` is a sparse matrix
+    if not isinstance(adata.X, scipy.sparse.csr_matrix):
+        adata.X = scipy.sparsecsr_matrix(adata.X)
+
+    logging.info("Creating peak-to-gene mapping...")
+    # Convert gene-to-peak assignments into a dictionary {gene: [peak_list]}
+    peak_annotations = adata.uns['atac']['peak_annotation']
+    peak_annotations = peak_annotations[peak_annotations["peak_type"] != "intergenic"]
+    gene_to_peak_mapping = peak_annotations.groupby(peak_annotations.index)["peak"].apply(list).to_dict()
+
+    # Get unique gene and peak lists
+    gene_ids = list(gene_to_peak_mapping.keys())
+    peak_ids = list(adata.var.index)  # Peaks present in adata
+
+    logging.info(f"Number of genes: {len(gene_ids)}, Number of peaks: {len(peak_ids)}")
+
+    # Create a dictionary to map peak names to matrix indices
+    peak_index_map = {peak: i for i, peak in enumerate(peak_ids)}
+
+    logging.info("Constructing sparse peak-to-gene mapping matrix...")
+    # Prepare indices for sparse matrix
+    row_idx = []
+    col_idx = []
+    data = []
+
+    for gene_idx, (gene, peaks) in enumerate(gene_to_peak_mapping.items()):
+        valid_peak_indices = [peak_index_map[p] for p in peaks if p in peak_index_map]  # Ensure peaks exist
+        row_idx.extend(valid_peak_indices)
+        col_idx.extend([gene_idx] * len(valid_peak_indices))
+        data.extend([1] * len(valid_peak_indices))  # Binary indicator
+
+    # Construct sparse peak-to-gene mapping matrix
+    peak_to_gene_matrix = scipy.sparse.csr_matrix((data, (row_idx, col_idx)), shape=(len(peak_ids), len(gene_ids)), dtype=np.float32)
+
+    logging.info("Performing sparse matrix multiplication...")
+    # Compute gene activity using sparse matrix multiplication
+    gene_activity_matrix = adata.X @ peak_to_gene_matrix  # Efficient summation
+
+    logging.info("Creating AnnData object for gene activities...")
+    # Create AnnData object with gene activities
+    adata_gene = sc.AnnData(
+        X=gene_activity_matrix,
+        obs=adata.obs.copy(),  # Preserve cell metadata
+        var=pd.DataFrame(index=gene_ids)  # Set gene names as index
+    )
+
+    # Retain UMAP coordinates if available
+    if "X_umap" in adata.obsm.keys():
+        adata_gene.obsm["X_umap"] = adata.obsm["X_umap"]
+
+    return adata_gene

@@ -170,13 +170,33 @@ for sample in scATAC_samples:
     adata_paths[sample] = os.path.join(DATA_PATH, "preprocessed", sample, "unified.h5ad")
 
 # %%
-anndata.experimental.concat_on_disk(in_files=adata_paths, out_file=os.path.join(DATA_PATH, "scATAC_all.h5ad"), label="sample_name", join="outer", index_unique="_")
+anndata.experimental.concat_on_disk(in_files=adata_paths, out_file=os.path.join(DATA_PATH, "scATAC_all.h5ad"), label="sample_name", join="outer", index_unique="_", merge='same')
 
 # %% [markdown]
 # # Dimensional Reduction and Clustering the combined anndata object
 
 # %%
 adata = sc.read_h5ad('../data/scATAC_all.h5ad')
+
+# %%
+adata.layers["counts"] = adata.X.copy().astype(np.float32)
+
+# %%
+# wrangle .var dataframe
+adata.var["peak_id"] = adata.var.index
+
+# %%
+import re
+
+# Function to parse genomic coordinates into separate columns
+def parse_peak_id(coord):
+    match = re.match(r"([^:]+):(\d+)-(\d+)", coord)
+    if match:
+        return match.groups()
+    return None, None, None
+
+# Apply the function to the DataFrame
+adata.var[["Chromosome", "Start", "End"]] = adata.var["peak_id"].apply(lambda x: pd.Series(parse_peak_id(x)))
 
 # %%
 ac.pp.tfidf(adata, scale_factor=1e4)
@@ -201,8 +221,8 @@ sc.tl.umap(adata)
 
 # %%
 # check batch effects after harmony integration
-sc.tl.embedding_density(adata, groupby="sample_name")
-sc.pl.embedding_density(adata, basis="umap", key="umap_density_sample_name")
+sc.tl.embedding_density(adata, groupby="month")
+sc.pl.embedding_density(adata, basis="umap", key="umap_density_month")
 
 # %%
 sc.tl.leiden(adata, resolution=0.3)
@@ -211,7 +231,7 @@ sc.tl.leiden(adata, resolution=0.3)
 sc.pl.umap(adata, color=["leiden", "n_features_per_cell"], legend_loc="on data")
 
 # %%
-adata.write_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
+adata.write_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"), compression="gzip")
 
 # %% [markdown]
 # # Gene activity matrix
@@ -220,45 +240,57 @@ adata.write_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
 adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
 
 # %%
-gene_intervals = pd.read_csv('/home/sychen9584/projects/cardio_paper/data/ref/gene_intervals.csv')
-gene_intervals_filtered = gene_intervals[gene_intervals['Chromosome'].str.startswith('chr')]
-gene_intervals_filtered = gene_intervals_filtered[gene_intervals_filtered['Chromosome'] != "chrM"]
+bed_df = adata_atac.var[['Chromosome', 'Start', 'End']]
+bed_df.to_csv(os.path.join(DATA_PATH, "unified_peaks.bed"), sep="\t", header=False, index=False)
 
 # %%
-for sample in scATAC_samples:
-    logging.info(f"Counting fragments for {sample}----------------------------------")
-    adata = sc.read_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "unified.h5ad"))
-    ac.tl.locate_fragments(adata, fragments=os.path.join(DATA_PATH, 'raw', sample, 'fragments.tsv.gz'))
-    adata_gene = ac.tl.count_fragments_features(adata, features=gene_intervals_filtered, stranded=True)
-    adata_gene.write_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "gene_activity.h5ad"))
+# Homer annotation on unified peaks
+bed_unzipped_path = os.path.join(DATA_PATH, "unified_peaks.bed")
+annot_path = os.path.join(DATA_PATH, "unified_annotated_peaks.txt")
 
 # %%
-adatas = {}
-for sample in scATAC_samples:
-    adata = sc.read_h5ad(os.path.join(DATA_PATH, "preprocessed", sample, "gene_activity.h5ad"))
-    adata.X = adata.X.astype(np.int32)
-    adatas.update({sample: adata})
+import subprocess
+
+# Bash script with multiple commands
+bash_script = f"""
+annotatePeaks.pl {bed_unzipped_path} mm10 > {annot_path} && \
+echo "Annotation complete!"
+"""
+
+# Run the script
+result = subprocess.run(bash_script, shell=True, text=True, capture_output=True)
+
+# Check for errors
+if result.returncode == 0:
+    print("Annotation completed successfully!")
+else:
+    print("Error:", result.stderr)
 
 # %%
-adata_gene = anndata.concat(adatas, label="sample_name", index_unique="_", merge="same")
+# Load HOMER annotation output and wrangle into 10X tsv format
+homer_df = pd.read_csv(annot_path, sep="\t")
+homer_df = homer_df.iloc[:, [1, 2, 3, 14, 15, 9, 7]]
+homer_df.columns = ['chrom', 'start', 'end', 'gene_id', 'gene', 'distance', 'peak_type']
+homer_df['peak_type'] = homer_df['peak_type'].str.extractall(r'^(.*?)(?=\s\()').unstack()
+homer_df['peak_type'] = homer_df['peak_type'].fillna('intergenic')
+homer_df['peak_type'] = homer_df['peak_type'].replace({
+    'intron': 'distal',
+    'exon': 'distal', 
+    'promoter-TSS': 'promoter',
+    "5' UTR": 'distal', 'non-coding': 'distal',
+    'TTS': 'distal', "3' UTR": 'distal'
+})
+homer_df['start'] = homer_df['start'] - 1
+homer_df.to_csv(os.path.join(DATA_PATH, "unified_annotated_peaks.txt"), sep="\t", index=False)
 
 # %%
-# # copy some data over from the original adata object
-adata_gene.var = adata_gene.var.set_index('gene_name')
-adata_gene.var.index = adata_gene.var.index.astype(str)
-adata_gene.var_names_make_unique()
+ac.tools.add_peak_annotation(adata_atac, annotation=os.path.join(DATA_PATH, "unified_annotated_peaks.txt"))
 
 # %%
-adata_gene.uns['leiden_colors'] = adata_atac.uns['leiden_colors'].copy()
-adata_gene.obsm['X_pca_harmony'] = adata_atac.obsm['X_pca_harmony'].copy()
-adata_gene.obsm['X_umap'] = adata_atac.obsm['X_umap'].copy()
-adata_gene.obs['leiden'] = adata_atac.obs['leiden'].copy()
+adata_atac.X = adata_atac.layers["counts"].copy() # restore raw counts
 
 # %%
-adata_gene.obs['barcode'] = adata_gene.obs.index.astype(str)
-
-# %%
-adata_gene.write_h5ad(os.path.join(DATA_PATH, "scATAC_all_gene_activity.h5ad"), compression="gzip")
+adata_gene = scatac_preprocessing.calculate_gene_activity(adata_atac)
 
 # %%
 adata_gene.layers['count'] = adata_gene.X.copy()
@@ -275,6 +307,6 @@ sc.pl.umap(adata_gene, color=["Gsn", "Lyz2", "Egfl7", 'leiden'])
 sc.pl.violin(adata_gene, keys=["Gsn", "Ctss", "Egfl7"], groupby="leiden")
 
 # %%
-adata_gene.write_h5ad("scATAC_all_gene_activity.h5ad", compression="gzip")
+adata_gene.write_h5ad(os.path.join(DATA_PATH, "scATAC_all_gene_activity.h5ad"), compression="gzip")
 
 # %%
