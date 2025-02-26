@@ -48,11 +48,16 @@ FIGURE_PATH = "/home/sychen9584/projects/cardio_paper/figures"
 
 # %%
 adata_rna = sc.read_h5ad(os.path.join(DATA_PATH, 'scRNA_all.h5ad'))
-adata_rna
+adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, 'scATAC_scanvi_annot.h5ad'))
 
 # %%
 # rename cell_type_fine names to match visualiztion in the publication
 adata_rna.obs['cell_type_fine'] = adata_rna.obs['cell_type_fine'].replace({
+    'Granulocyte/Neutrophil': "Neutrophil",
+    'Peri/Smooth Muscle': 'Smooth Muscle'
+})
+
+adata_atac.obs['cell_type_fine'] = adata_atac.obs['cell_type_fine'].replace({
     'Granulocyte/Neutrophil': "Neutrophil",
     'Peri/Smooth Muscle': 'Smooth Muscle'
 })
@@ -108,6 +113,9 @@ river_colors = dict(zip(unique_celltypes, hex_colors))
 
 adata_rna.uns['cell_type_fine_colors'] = [cell_type_fine_colors[c] for c in adata_rna.obs["cell_type_fine"].cat.categories]
 adata_rna.uns['cell_type_colors'] = [cell_type_colors[c] for c in adata_rna.obs["cell_type"].cat.categories]
+
+adata_atac.uns['cell_type_fine_colors'] = [cell_type_fine_colors[c] for c in adata_rna.obs["cell_type_fine"].cat.categories]
+adata_atac.uns['cell_type_colors'] = [cell_type_colors[c] for c in adata_rna.obs["cell_type"].cat.categories]
 
 cell_type_order = ['Fibroblast', 'Endothelial', 'Smooth Muscle', "Macrophage", "Neutrophil", "T Cell", "B Cell"]
 cell_type_fine_order = ['Fib.1', 'Fib.2', 'Fib.3', 'Fib.4', 'Fib.5', 'Fib.6',
@@ -194,7 +202,7 @@ fig.update_layout(
     autosize=False,
     width=425,
     height=400,
-    font=dict(size=10, weight="bold")
+    font=dict(size=11, weight="bold")
     
 )
 
@@ -261,6 +269,7 @@ def label_bars(ax: plt.Axes, df: pd.DataFrame, celltypes: Set[str], text_kwargs:
 
 
 # %%
+# figure 1f
 cellnum_fine_df = adata_rna.obs[['sample', 'cell_type_fine']]
 cellnum_fine_df[['month', 'sample']] = cellnum_fine_df['sample'].str.split("_", expand=True).iloc[:, -2:]
 cellnum_fine_df = cellnum_fine_df[['month', 'cell_type_fine']].groupby('month').value_counts(normalize=True).reset_index().sort_values(['month', 'cell_type_fine'])
@@ -289,7 +298,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
         exclude=("None",),  # This was before we had the `nan` behaviour
         ax=ax1,
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
-        text_kwargs=dict(fontsize=11, weight='bold'),
+        text_kwargs=dict(fontsize=11, weight='bold')
     )
     
     # ax2: river plot of cell types and their subtypes
@@ -299,6 +308,15 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     
     # ax3: scATAC-seq UMAP
     ax3 = fig.add_subplot(gs00[0, 2])
+    sc.pl.umap(adata_atac, color='cell_type_fine', show=False, title="", legend_loc=None, palette=cell_type_fine_colors, ax=ax3)
+    repel_umap_labels(
+        adata_atac,
+        "cell_type_fine",
+        exclude=("None",),  # This was before we had the `nan` behaviour
+        ax=ax3,
+        adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
+        text_kwargs=dict(fontsize=11, weight='bold')
+    )
     
     # second row
     gs01 = gs0[1].subgridspec(1, 4, width_ratios =[1.5, 0.5, 1.5, 0.5])
@@ -342,17 +360,9 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     plt.show()
 
 # %%
+adata_atac.obs['cell_type_fine'].value_counts()
 
 # %%
-cellnum_fine_df_pivot
-
-# %%
-cellnum_fine_df = adata_rna.obs[['sample', 'cell_type_fine']]
-cellnum_fine_df[['month', 'sample']] = cellnum_fine_df['sample'].str.split("_", expand=True).iloc[:, -2:]
-cellnum_fine_df = cellnum_fine_df[['month', 'cell_type_fine']].value_counts().reset_index().sort_values(['month', 'cell_type_fine'])
-
-# %%
-cellnum_fine_df
 
 # %%
 

@@ -128,7 +128,7 @@ import decoupler as dc
 
 # %%
 ref_markers = pd.read_excel("../data/ref/cardio_geneset_ref.xlsx", sheet_name="markers")
-adata = sc.read_h5ad('../data/scRNA_all.h5ad')
+#adata = sc.read_h5ad('../data/scRNA_all.h5ad')
 
 # %%
 # keep top 20 marker genes for each cell type
