@@ -33,6 +33,7 @@ from PIL import Image
 from io import BytesIO
 from adjustText import adjust_text
 from typing import Dict, List, Optional, Set
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 sc.settings.verbosity = 0
 sc.settings.set_figure_params(
@@ -47,8 +48,8 @@ DATA_PATH = "/home/sychen9584/projects/cardio_paper/data"
 FIGURE_PATH = "/home/sychen9584/projects/cardio_paper/figures"
 
 # %%
-adata_rna = sc.read_h5ad(os.path.join(DATA_PATH, 'scRNA_all.h5ad'))
-adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, 'scATAC_scanvi_annot.h5ad'))
+adata_rna = sc.read_h5ad(os.path.join(DATA_PATH, 'processed/scRNA_all.h5ad'))
+adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, 'processed/scATAC_scanvi_annot.h5ad'))
 
 # %%
 # rename cell_type_fine names to match visualiztion in the publication
@@ -128,7 +129,7 @@ month_order = ['m3', 'm12', 'm24']
 # %%
 # figure 1b
 def repel_umap_labels(
-    adata, groupby, exclude=(), ax=None, adjust_kwargs=None, text_kwargs=None
+    adata, groupby, include=None, ax=None, adjust_kwargs=None, text_kwargs=None
 ):
     if adjust_kwargs is None:
         adjust_kwargs = {"text_from_points": False}
@@ -136,11 +137,13 @@ def repel_umap_labels(
         text_kwargs = {}
 
     medians = {}
+    
+    if include is None:
+        include = adata.obs[groupby].unique()
 
     for g, g_idx in adata.obs.groupby(groupby).groups.items():
-        if g in exclude:
-            continue
-        medians[g] = np.median(adata[g_idx].obsm["X_umap"], axis=0)
+        if g in include:
+            medians[g] = np.median(adata[g_idx].obsm["X_umap"], axis=0)
 
     if ax is None:
         texts = [
@@ -200,7 +203,7 @@ fig = go.Figure(data=[go.Sankey(
 fig.update_layout(
     margin=dict(l=5, r=5, t=5, b=5),
     autosize=False,
-    width=425,
+    width=450,
     height=400,
     font=dict(size=11, weight="bold")
     
@@ -282,6 +285,76 @@ cellnum_fine_df_pivot = cellnum_fine_df.pivot(index="month", columns="cell_type_
 fine_colors = [cell_type_fine_colors[cell_type] for cell_type in cellnum_fine_df_pivot.columns]
 
 # %%
+# figure 1g
+augur_colors = ["#27408B",  # royalblue4
+          "#FFF8DC",  # cornsilk1
+          "#FF8C00",  # DarkOrange
+          "#CD4F39"]  # tomato3
+
+# Create a custom colormap
+augur_cmap = mcolors.LinearSegmentedColormap.from_list("custom_cmap", augur_colors)
+
+# %%
+augur_celltype = pd.read_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_rfc.csv"), index_col=0)
+augur_celltype_map = dict(augur_celltype.loc['mean_auc'])
+
+augur_celltype_fine = pd.read_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_fine_rfc.csv"), index_col=0)
+augur_celltype_fine_map = dict(augur_celltype_fine.loc['mean_auc'])
+
+adata_rna.obs['augur_celltype'] = adata_rna.obs['cell_type'].map(augur_celltype_map)
+adata_rna.obs['augur_celltype_fine'] = adata_rna.obs['cell_type_fine'].map(augur_celltype_fine_map).rank(pct=True)
+
+
+# %%
+def augur_colorbar(ax, label, label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="3%"):
+    """
+    Adds a colorbar to a given axis, with customizable label, font sizes, and padding.
+
+    Parameters:
+    - ax (matplotlib.axes.Axes): The axis to which the colorbar is attached.
+    - label (str): The text label for the colorbar.
+    - label_fontsize (int): Font size for the colorbar label.
+    - tick_fontsize (int): Font size for the colorbar ticks.
+    - pad_size (float): Padding between the plot and the colorbar.
+    - size (str): Width of the colorbar (default "3%").
+
+    Returns:
+    - cbar (matplotlib.colorbar.Colorbar): The created colorbar.
+    """
+
+    # Extract the scatter plot (mappable object)
+    mappable = ax.collections[0]
+
+    # Create a divider for better placement control
+    divider = make_axes_locatable(ax)
+
+    # Append colorbar to the right with specified size & padding
+    cax = divider.append_axes("right", size=size, pad=pad_size)
+
+    # Add colorbar
+    cbar = plt.colorbar(mappable, cax=cax)
+
+    # Set colorbar label and font size
+    cbar.set_label(label, fontsize=label_fontsize)
+
+    # Adjust tick font size
+    cbar.ax.tick_params(labelsize=tick_fontsize)
+
+    return cbar  # Return colorbar for further modifications if needed
+
+
+# %%
+# figure 1h
+augur_3_v_12 = pd.read_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_m3_v_m12_rfc.csv"), index_col=0)
+augur_12_v_24 = pd.read_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_m12_v_m24_rfc.csv"), index_col=0)
+
+augur_df = pd.DataFrame({'m3_v_m12': augur_3_v_12.loc['mean_auc'],
+                         'm12_v_m24': augur_12_v_24.loc['mean_auc']})
+augur_df['delta'] = augur_df['m3_v_m12'] - augur_df['m12_v_m24']
+augur_df.index.name = "cell_type"
+augur_df.reset_index(inplace=True)
+
+# %%
 with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.frameon": True}):
     fig = plt.figure()
     gs0 = gridspec.GridSpec(3, 1, figure=fig, height_ratios=[1, 1, 1])
@@ -295,7 +368,6 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     repel_umap_labels(
         adata_rna,
         "cell_type_fine",
-        exclude=("None",),  # This was before we had the `nan` behaviour
         ax=ax1,
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
         text_kwargs=dict(fontsize=11, weight='bold')
@@ -304,7 +376,8 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     # ax2: river plot of cell types and their subtypes
     ax2 = fig.add_subplot(gs00[0, 1])
     ax2.axis("off")
-    ax2.imshow(img)
+    ax2.set_adjustable("box")  # Makes sure the image scales properly
+    ax2.imshow(img, aspect="auto", extent=ax2.get_position().extents)  # Forces it to fit tighter
     
     # ax3: scATAC-seq UMAP
     ax3 = fig.add_subplot(gs00[0, 2])
@@ -312,7 +385,6 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     repel_umap_labels(
         adata_atac,
         "cell_type_fine",
-        exclude=("None",),  # This was before we had the `nan` behaviour
         ax=ax3,
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
         text_kwargs=dict(fontsize=11, weight='bold')
@@ -322,7 +394,6 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     gs01 = gs0[1].subgridspec(1, 4, width_ratios =[1.5, 0.5, 1.5, 0.5])
     
     ax4 = fig.add_subplot(gs01[0, 0])
-    
     cellnum_df_pivot.plot(kind="barh", stacked=True, color=coarse_colors, ax=ax4)
     ax4.tick_params(axis="x", labelsize=10)
     ax4.set_yticklabels(['3 month', '12 month', '24 month'], fontsize=10)
@@ -344,26 +415,67 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     ax5.legend(handles[::-1], labels[::-1], title="Cell Type", loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, title_fontsize=8, frameon=False)
     
     # third row
-    gs02 = gs0[2].subgridspec(1, 3)  # 1 row, 3 columns
+    gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 0, 1])  # 1 row, 3 columns
     ax6 = fig.add_subplot(gs02[0, 0])
-    ax7 = fig.add_subplot(gs02[0, 1])
-    ax8 = fig.add_subplot(gs02[0, 2])
+    sc.pl.umap(adata_rna, color='augur_celltype', show=False, title="", legend_loc=None, color_map=augur_cmap, colorbar_loc=None, ax=ax6)
+    repel_umap_labels(
+        adata_rna,
+        "cell_type",
+        include=["Macrophage", "Neutrophil", "Fibroblast"],
+        ax=ax6,
+        adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
+        text_kwargs=dict(fontsize=11, weight='bold')
+    )
+    augur_colorbar(ax6, "AUC", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
     
-    axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
+    ax7 = fig.add_subplot(gs02[0, 1])
+    sc.pl.umap(adata_rna, color='augur_celltype_fine', show=False, title="", legend_loc=None, color_map=augur_cmap, colorbar_loc=None, ax=ax7)
+    repel_umap_labels(
+        adata_rna,
+        "cell_type_fine",
+        include=['Fib.1', 'MC.1', "MC.2", "MC/B-Cell", 'Neutrophil'],
+        ax=ax7,
+        adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
+        text_kwargs=dict(fontsize=11, weight='bold')
+    )
+    augur_colorbar(ax7, "Rank (%)", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
+    
+    ax8 = fig.add_subplot(gs02[0, 3])
+    sns.scatterplot(
+        data=augur_df,
+        x="m12_v_m24",
+        y="m3_v_m12",
+        hue="delta",
+        hue_norm=(augur_df["delta"].min(), augur_df["delta"].max()),  # Normalize color scale
+        palette=augur_cmap, legend=False, s=75, ax=ax8
+    )
+    texts = []
+    for i, row in augur_df.iterrows():
+        texts.append(
+            ax8.text(row["m12_v_m24"], row["m3_v_m12"], row["cell_type"], fontsize=8, color="black", ha="right", va="bottom")
+        )
+    adjust_text(texts, ax=ax8)
+    # diagonal line
+    x_vals = np.linspace(augur_df["m12_v_m24"].min(), augur_df["m12_v_m24"].max(), 100)  # Get min-max range
+    ax8.plot(x_vals, x_vals, linestyle="--", color="grey", linewidth=1)
+    
+    ax8.tick_params(labelsize=10)
+    ax8.set_xlabel("AUC 12 months vs 24 months", fontsize=10)
+    ax8.set_ylabel("AUC 3 months vs 12 months", fontsize=10)
+    
+    
+    axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax8]
     for i, ax in enumerate(axes, 1):
         ax.text(-0.1, 1.1, f"{chr(65+i)}", transform=ax.transAxes, fontsize=20, fontweight='bold', va='top', ha='left')
         ax.grid(False)
 
     #fig.subplots_adjust(left=0.1, right=0.85, top=0.9, bottom=0.1, wspace=0.4, hspace=0.4)
     plt.suptitle("Figure 1. Integrated single-cell transcriptomic and epigenomic analysis of non-cardiac (non-CM) cells during aging")
+    fig.subplots_adjust(wspace=0.3)
     fig.tight_layout()
     plt.show()
 
 # %%
-adata_atac.obs['cell_type_fine'].value_counts()
-
-# %%
-
-# %%
+fig.savefig(os.path.join(FIGURE_PATH, "figure1.png"), bbox_inches='tight', dpi=300)
 
 # %%

@@ -3,7 +3,7 @@
 notebook_dir="../notebooks"
 
 # iterate through all ipynb files in directory
-for notebook in "$notebook_dir"/*.ipynb; do
+find "$notebook_dir" -type f -name "*.ipynb" | while read -r notebook; do
     # Check if the file exists
     if [ -f "$notebook" ]; then
     

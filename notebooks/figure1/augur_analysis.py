@@ -43,7 +43,7 @@ sc.settings.set_figure_params(
 DATA_PATH = "/home/sychen9584/projects/cardio_paper/data"
 
 # %%
-adata = sc.read_h5ad(os.path.join(DATA_PATH, "scRNA_all.h5ad"))
+adata = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_all.h5ad"))
 adata
 
 # %%
@@ -160,8 +160,8 @@ ag_rfc = pt.tl.Augur("random_forest_classifier")
 # Default mode
 adata_12 = ag_rfc.load(
     adata,
-    condition_label="m3",
-    treatment_label="m12",
+    condition_label="m12",
+    treatment_label="m3",
     label_col="month"
 )
 
@@ -184,6 +184,9 @@ _, v_results_12_permute = ag_rfc.predict(
 )
 
 # %%
+v_results_12['summary_metrics'].to_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_m12_v_m3_rfc.csv"))
+
+# %%
 with open(os.path.join(DATA_PATH, "augur_cell_type_m12_v_m3_rfc.pkl"), 'wb') as f:
     pickle.dump(v_results_12, f)
     
@@ -197,8 +200,8 @@ with open(os.path.join(DATA_PATH, "augur_cell_type_m12_v_m3_permute_rfc.pkl"), '
 # Default mode
 adata_24 = ag_rfc.load(
     adata,
-    condition_label="m12",
-    treatment_label="m24",
+    condition_label="m24",
+    treatment_label="m12",
     label_col="month"
 )
 
@@ -209,6 +212,9 @@ _, v_results_24 = ag_rfc.predict(
 v_results_24["summary_metrics"].loc["mean_augur_score"].sort_values(
     ascending=False
 )
+
+# %%
+v_results_24['summary_metrics'].to_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_m24_v_m12_rfc.csv"))
 
 # %%
 # Permute mode
