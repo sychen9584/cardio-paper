@@ -335,21 +335,33 @@ ac.pl.umap(adata_atac, color=["Gsn", "Lyz2", "Egfl7"], average="total", use_raw=
 # # Gene activity matrix
 
 # %%
-gene_intervals = pd.read_csv('/home/sychen9584/projects/cardio_paper/data/ref/gene_intervals.csv')
+adata_atac = sc.read_h5ad(os.path.join(DATA_PATH, "scATAC_all.h5ad"))
 
 # %%
-gene_intervals_filtered = gene_intervals[gene_intervals['Chromosome'].str.startswith('chr')]
-gene_intervals_filtered = gene_intervals_filtered[gene_intervals_filtered['Chromosome'] != "chrM"]
+# Load HOMER annotation output and wrangle into 10X tsv format
+homer_df = pd.read_csv(os.path.join(DATA_PATH, "unified_annotated_peaks.txt"), sep="\t")
+homer_df = homer_df.iloc[:, [1, 2, 3, 14, 15, 9, 7]]
+homer_df.columns = ['chrom', 'start', 'end', 'gene_id', 'gene', 'distance', 'peak_type']
+homer_df['peak_type'] = homer_df['peak_type'].str.extractall(r'^(.*?)(?=\s\()').unstack()
+homer_df['peak_type'] = homer_df['peak_type'].fillna('intergenic')
+homer_df['peak_type'] = homer_df['peak_type'].replace({
+    'intron': 'distal',
+    'exon': 'distal', 
+    'promoter-TSS': 'promoter',
+    "5' UTR": 'distal', 'non-coding': 'distal',
+    'TTS': 'distal', "3' UTR": 'distal'
+})
+homer_df['start'] = homer_df['start'] - 1
 
 # %%
-adata_atac_gene = ac.tl.count_fragments_features(adata_atac, features=gene_intervals_filtered, stranded=True)
+ac.add_peak_annotation(adata_atac, annotation=homer_df)
 
 # %%
-# # copy some data over from the original adata object
-adata_atac_gene.var = adata_atac_gene.var.set_index('gene_name')
-adata_atac_gene.uns['leiden_colors'] = adata_atac.uns['leiden_colors'].copy()
-adata_atac_gene.obsm['X_lsi'] = adata_atac.obsm['X_lsi'] .copy()
-adata_atac_gene.obsm['X_umap'] = adata_atac.obsm['X_umap'] .copy()
+adata_atac_gene = scatac_preprocessing.calculate_gene_activity(adata_atac)
+
+# %%
+adata_atac_gene.var.index = adata_atac_gene.var.index.astype(str)
+adata_atac_gene.var_names_make_unique()
 
 # %%
 adata_atac_gene.layers['count'] = adata_atac_gene.X.copy()
@@ -361,10 +373,6 @@ sc.pp.log1p(adata_atac_gene)
 # %%
 # we can use the functionality of the ATAC module in muon to color plots by cut values in peaks correspoonding to a certain gene
 sc.pl.umap(adata_atac_gene, color=["Gsn", "Lyz2", "Egfl7", 'leiden'])
-
-# %%
-adata_atac_gene.var.index = adata_atac_gene.var.index.astype(str)
-adata_atac_gene.var_names_make_unique()
 
 # %%
 sc.pl.violin(adata_atac_gene, keys=["Gsn", "Lyz2", "Egfl7"], groupby="leiden")

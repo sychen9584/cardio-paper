@@ -78,20 +78,20 @@ adata.obs_names_make_unique()
 adata
 
 # %%
+adata.X = adata.layers["counts"].copy()
+
+# %%
 # identify variable genes
-adata.X = adata.layers['counts']
 sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor="seurat_v3")
 
 # %%
 sc.pl.highly_variable_genes(adata)
 
 # %%
-adata.X = adata.layers['lognormalized']
-adata.raw = adata.copy()
+adata.X = adata.layers["lognormalized"].copy()
 
 # %%
 # scale highly variable genes
-adata = adata[:, adata.var['highly_variable']]
 sc.pp.scale(adata, max_value=10)
 
 # %%
@@ -136,8 +136,7 @@ ref_makers_top20 = ref_markers.groupby('cluster').head(20)
 ref_makers_top20
 
 # %%
-# Restore the full dataset from adata.raw
-adata = adata.raw.to_adata()
+adata.X = adata.layers["lognormalized"].copy()
 
 # %%
 # run Multivariate Linear Model with decoupler
@@ -177,6 +176,9 @@ annot_map_fine['8'] = "Endo.1"
 annot_map_fine['9'] = "Endo.4"
 annot_map_fine['15'] = "MC.3"
 
+annot_map_fine['0'] = "Fib.1"
+annot_map_fine['1'] = "Fib.1"
+
 # %%
 adata.obs['cell_type_fine'] = adata.obs['res_0_8'].map(annot_map_fine)
 
@@ -195,6 +197,15 @@ adata.obs['cell_type'] = adata.obs['cell_type_fine'].str.extract(r'(' + '|'.join
 
 # %%
 sc.pl.umap(adata, color=["cell_type","cell_type_fine"], wspace=0.5)
+
+# %%
+sc.pl.violin(adata, keys=["Ctss", "Lyz2", "C1qb"], groupby="cell_type", rotation=90)
+
+# %%
+adata
+
+# %%
+adata.write_h5ad(os.path.join(DATA_PATH, f"scRNA_all.h5ad"), compression="gzip")
 
 # %% [markdown]
 # # Differentially Expressed Genes
@@ -271,3 +282,26 @@ celltype_fine_degs.to_csv(os.path.join(DATA_PATH, "deg", "scRNA_cell_type_fine.c
 # save final scRNA adata object
 adata.X = csr_matrix(adata.X)
 adata.write_h5ad(os.path.join(DATA_PATH, f"scRNA_all.h5ad"), compression="gzip")
+
+# %% [markdown]
+# # That weird cluster from m12_s2
+# Lgals3+ Cotl1+
+
+# %%
+adata = sc.read_h5ad(os.path.join(DATA_PATH, f"scRNA_all.h5ad"))
+
+# %%
+adata.X = adata.layers["lognormalized"].copy()
+
+# %%
+#adata.X = adata.X.toarray()
+sc.tl.rank_genes_groups(adata, groupby="res_0_5", method="wilcoxon", key_added="test_DEG")
+sc.tl.filter_rank_genes_groups(adata, key="test_DEG", min_fold_change=1)
+
+# %%
+sc.get.rank_genes_groups_df(adata, group="18", key="test_DEG").head(25)
+
+# %%
+sc.pl.umap(adata, color=["Lgals3", "Cotl1", "Ctss", "doublet_score", "res_0_5"], wspace=0.5)
+
+# %%
