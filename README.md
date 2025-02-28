@@ -2,7 +2,7 @@
 
 This project aims to replicate the analysis from "**[Replicating "Decoding aging in the heart via single cell dual omics of non-cardiomyocytes](https://www.cell.com/iscience/fulltext/S2589-0042(24)02696-8)**" using Python instead of R.
 The original study applied single-cell RNA-seq (scRNA-seq) and single-cell ATAC-seq (scATAC-seq) analysis in R, utilizing packages such as [Seurat](https://satijalab.org/seurat/) and [Signac](https://stuartlab.org/signac/).
-This repository provides a step-by-step Python implementation using the [scVerse](https://scverse.org/) ecosystem, which consists of Scanpy, muon, and other related libraries.
+This repository provides a step-by-step Python implementation using the [scverse](https://scverse.org/) ecosystem, which consists of Scanpy, muon, and other related libraries.
 
 ## Highlights from the Song et al.
 - Single cell dual-omics profiling reveals nonmyocyte heterogeneity in heart aging
