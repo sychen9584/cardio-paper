@@ -7,6 +7,7 @@ import matplotlib as mpl
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.patheffects as path_effects
 import plotly.graph_objects as go
 import plotly.io as pio
 
@@ -183,4 +184,27 @@ def get_celltype_colors():
     
     return cell_type_colors, cell_type_fine_colors
 
+def add_median_labels(ax: plt.Axes, fmt: str = ".4f") -> None:
+    """Add text labels to the median lines of a seaborn boxplot.
 
+    Args:
+        ax: plt.Axes, e.g., the return value of sns.boxplot()
+        fmt: format string for the median value
+    """
+    lines = ax.get_lines()
+    
+    # Automatically find median lines (they are the only lines with a single X or Y value)
+    median_lines = [line for line in lines if line.get_linestyle() == '-' and len(set(line.get_ydata())) == 1]
+
+    for median in median_lines:
+        x, y = (data.mean() for data in median.get_data())
+
+        # Annotate median
+        text = ax.text(x, y, f'{y:{fmt}}', ha='center', va='center',
+                       fontweight='bold', fontsize=8, color='white')
+
+        # Add contrast stroke
+        text.set_path_effects([
+            path_effects.Stroke(linewidth=2, foreground=median.get_color()),
+            path_effects.Normal(),
+        ])

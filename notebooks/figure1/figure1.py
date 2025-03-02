@@ -41,7 +41,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 import sys
 sys.path.append('../../scripts')
-import figure1_functions as fig1
+import figure_functions as fig_func
 
 sc.settings.verbosity = 0
 sc.settings.set_figure_params(
@@ -75,7 +75,7 @@ adata_atac.obs['cell_type_fine'] = adata_atac.obs['cell_type_fine'].replace({
 
 # %%
 # colors for umap plots
-cell_type_colors, cell_type_fine_colors = fig1.get_celltype_colors()
+cell_type_colors, cell_type_fine_colors = fig_func.get_celltype_colors()
 
 # ordering of cell types and samples
 cell_type_order = ['Fibroblast', 'Endothelial', 'Smooth Muscle', "Macrophage", "Neutrophil", "T Cell", "B Cell"]
@@ -187,7 +187,7 @@ fine_colors = [cell_type_fine_colors[cell_type] for cell_type in cellnum_fine_df
 # ## Figure 1G
 
 # %%
-augur_cmap = fig1.get_augur_colors()
+augur_cmap = fig_func.get_augur_colors()
 
 augur_celltype = pd.read_csv(os.path.join(DATA_PATH, "augur/augur_cell_type_rfc.csv"), index_col=0)
 augur_celltype_map = dict(augur_celltype.loc['mean_auc'])
@@ -226,7 +226,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     # ax1: scRNA-seq UMAP
     ax1 = fig.add_subplot(gs00[0, 0])
     sc.pl.umap(adata_rna, color='cell_type_fine', show=False, title="", legend_loc=None, palette=cell_type_fine_colors, ax=ax1)
-    fig1.repel_umap_labels(
+    fig_func.repel_umap_labels(
         adata_rna,
         "cell_type_fine",
         ax=ax1,
@@ -243,7 +243,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     # ax3: scATAC-seq UMAP
     ax3 = fig.add_subplot(gs00[0, 2])
     sc.pl.umap(adata_atac, color='cell_type_fine', show=False, title="", legend_loc=None, palette=cell_type_fine_colors, ax=ax3)
-    fig1.repel_umap_labels(
+    fig_func.repel_umap_labels(
         adata_atac,
         "cell_type_fine",
         ax=ax3,
@@ -264,7 +264,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     
     handles, labels = ax4.get_legend_handles_labels()
     ax4.legend(handles[::-1], labels[::-1], title="Cell Type", loc="center left", bbox_to_anchor=(1.01, 0.5), fontsize=8, title_fontsize=8, frameon=False)
-    fig1.label_bars(ax4, cellnum_df_pivot, celltypes={'Fibroblast', "Endothelial", "Macrophage"})
+    fig_func.label_bars(ax4, cellnum_df_pivot, celltypes={'Fibroblast', "Endothelial", "Macrophage"})
     
     # ax5: bar plot of cell type fine proportions
     ax5 = fig.add_subplot(gs01[0, 2])
@@ -283,7 +283,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
     # ax6: UMAP of cell types colored by Augur scores
     ax6 = fig.add_subplot(gs02[0, 0])
     sc.pl.umap(adata_rna, color='augur_celltype', show=False, title="", legend_loc=None, color_map=augur_cmap, colorbar_loc=None, ax=ax6)
-    fig1.repel_umap_labels(
+    fig_func.repel_umap_labels(
         adata_rna,
         "cell_type",
         include=["Macrophage", "Neutrophil", "Fibroblast"],
@@ -291,12 +291,12 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
         text_kwargs=dict(fontsize=11, weight='bold')
     )
-    fig1.augur_colorbar(ax6, "AUC", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
+    fig_func.augur_colorbar(ax6, "AUC", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
     
     # ax7: UMAP of cell type fine colored by Augur scores
     ax7 = fig.add_subplot(gs02[0, 1])
     sc.pl.umap(adata_rna, color='augur_celltype_fine', show=False, title="", legend_loc=None, color_map=augur_cmap, colorbar_loc=None, ax=ax7)
-    fig1.repel_umap_labels(
+    fig_func.repel_umap_labels(
         adata_rna,
         "cell_type_fine",
         include=['Fib.1', 'MC.1', "MC.2", "MC/B-Cell", 'Neutrophil'],
@@ -304,7 +304,7 @@ with plt.rc_context({"figure.figsize": (16, 14), "figure.dpi": 150, "figure.fram
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
         text_kwargs=dict(fontsize=11, weight='bold')
     )
-    fig1.augur_colorbar(ax7, "Rank (%)", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
+    fig_func.augur_colorbar(ax7, "Rank (%)", label_fontsize=10, tick_fontsize=8, pad_size=0.1, size="1.5%")
     
     # ax8: scatter plot of AUGUR perturbation scores between 3-12 months and 12-24 months
     ax8 = fig.add_subplot(gs02[0, 3])

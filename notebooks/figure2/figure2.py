@@ -31,12 +31,12 @@ import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib.patheffects as path_effects
+
 import starbars
 
 import sys
 sys.path.append('../../scripts')
-import figure1_functions as fig1
+import figure_functions as fig_func
 
 sc.settings.verbosity = 0
 sc.settings.set_figure_params(
@@ -67,34 +67,6 @@ sasp_fib6 = geneset_scores[geneset_scores['cell_type_fine'] == 'Fib.6']
 sasp_mc = geneset_scores[geneset_scores['cell_type_fine'] == 'MC.2']
 sasp_neutrophil = geneset_scores[geneset_scores['cell_type_fine'] == 'Granulocyte/Neutrophil']
 
-
-# %%
-def add_median_labels(ax: plt.Axes, fmt: str = ".4f") -> None:
-    """Add text labels to the median lines of a seaborn boxplot.
-
-    Args:
-        ax: plt.Axes, e.g., the return value of sns.boxplot()
-        fmt: format string for the median value
-    """
-    lines = ax.get_lines()
-    
-    # Automatically find median lines (they are the only lines with a single X or Y value)
-    median_lines = [line for line in lines if line.get_linestyle() == '-' and len(set(line.get_ydata())) == 1]
-
-    for median in median_lines:
-        x, y = (data.mean() for data in median.get_data())
-
-        # Annotate median
-        text = ax.text(x, y, f'{y:{fmt}}', ha='center', va='center',
-                       fontweight='bold', fontsize=8, color='white')
-
-        # Add contrast stroke
-        text.set_path_effects([
-            path_effects.Stroke(linewidth=2, foreground=median.get_color()),
-            path_effects.Normal(),
-        ])
-
-
 # %% [markdown]
 # ## Main Figure
 
@@ -121,7 +93,7 @@ with plt.rc_context({"figure.figsize": (13, 16), "figure.dpi": 150, "figure.fram
     
     ax2 = fig.add_subplot(gs00[0, 1])
     sc.pl.umap(adata, color='SASP_score', ax=ax2, show=False, title="", cmap="plasma", size=12, vmin=0.03, colorbar_loc=None)
-    fig1.repel_umap_labels(
+    fig_func.repel_umap_labels(
         adata,
         "cell_type",
         include=['Fibroblast', "Macrophage", "Endothelial"],
@@ -129,7 +101,7 @@ with plt.rc_context({"figure.figsize": (13, 16), "figure.dpi": 150, "figure.fram
         adjust_kwargs=dict(arrowprops=dict(arrowstyle='-', color='black')),
         text_kwargs=dict(fontsize=12, weight='bold')
     )
-    fig1.augur_colorbar(ax2, "AUC Score", label_fontsize=10, tick_fontsize=8, pad_size=0.05, size="1.5%")
+    fig_func.augur_colorbar(ax2, "AUC Score", label_fontsize=10, tick_fontsize=8, pad_size=0.05, size="1.5%")
     
     # second row
     gs01 = gs0[1].subgridspec(1, 3)
@@ -147,14 +119,14 @@ with plt.rc_context({"figure.figsize": (13, 16), "figure.dpi": 150, "figure.fram
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 0.01)]
     starbars.draw_annotation(sig, ax=ax4)
     ax4.set_title("SASP for Fib1.Cxcl1")
-    add_median_labels(ax4)
+    fig_func.add_median_labels(ax4)
     
     ax5 = fig.add_subplot(gs01[0, 2])
     sns.boxplot(sasp_fib6, x="month", y="SASP", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax5)
     sig = [('m3', 'm12', 1), ('m3', 'm24', 0.001), ('m12', 'm24', 0.001)]
     starbars.draw_annotation(sig, ax=ax5)
     ax5.set_title("SASP for Fib6.Erbb4")
-    add_median_labels(ax5)
+    fig_func.add_median_labels(ax5)
     
     # third row
     gs02 = gs0[2].subgridspec(1, 3) 
@@ -163,21 +135,21 @@ with plt.rc_context({"figure.figsize": (13, 16), "figure.dpi": 150, "figure.fram
     sns.boxplot(geneset_scores, x="month", y="SASP", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax6)
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 1)]
     starbars.draw_annotation(sig, ax=ax6)
-    add_median_labels(ax6)
+    fig_func.add_median_labels(ax6)
    
     ax7 = fig.add_subplot(gs02[0, 1])
     sns.boxplot(sasp_mc, x="month", y="SASP", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax7)
     sig = [('m3', 'm12', 1), ('m3', 'm24', 1), ('m12', 'm24', 0.01)]
     starbars.draw_annotation(sig, ax=ax7)
     ax7.set_title("SASP for MC.Cd209a")
-    add_median_labels(ax7)
+    fig_func.add_median_labels(ax7)
     
     ax8 = fig.add_subplot(gs02[0, 2])
     sns.boxplot(sasp_neutrophil, x="month", y="SASP", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax8)
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 1)]
     starbars.draw_annotation(sig, ax=ax8)
     ax8.set_title("SASP for Neutrophil")
-    add_median_labels(ax8)
+    fig_func.add_median_labels(ax8)
     
     # fourth row
     gs03 = gs0[3].subgridspec(1, 3) 
@@ -187,21 +159,21 @@ with plt.rc_context({"figure.figsize": (13, 16), "figure.dpi": 150, "figure.fram
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 0.001)]
     starbars.draw_annotation(sig, ax=ax9)
     ax9.set_title("Cardiac Fibrosis for All Clusters")
-    add_median_labels(ax9)
+    fig_func.add_median_labels(ax9)
     
     ax10 = fig.add_subplot(gs03[0, 1])
     sns.boxplot(geneset_scores, x="month", y="Heart Failure", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax10)
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 0.01)]
     starbars.draw_annotation(sig, ax=ax10)
     ax10.set_title("Heart Failure for All Clusters")
-    add_median_labels(ax10)
+    fig_func.add_median_labels(ax10)
     
     ax11 = fig.add_subplot(gs03[0, 2])
     sns.boxplot(geneset_scores, x="month", y="Inflammation", hue='month', palette=month_colors, linecolor="black", linewidth=1.2, showfliers=False, showcaps=False, ax=ax11)
     sig = [('m3', 'm12', 0.001), ('m3', 'm24', 0.001), ('m12', 'm24', 0.001)]
     starbars.draw_annotation(sig, ax=ax11)
     ax11.set_title("Inflammation for All Clusters")
-    add_median_labels(ax11)
+    fig_func.add_median_labels(ax11)
     
     axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8, ax9, ax10, ax11]
     for i, ax in enumerate(axes, 1):
