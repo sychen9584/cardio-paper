@@ -25,7 +25,7 @@ import sys
 import os
 import scanpy as sc
 import anndata as ad
-sys.path.append('../scripts')
+sys.path.append('../../scripts')
 from preprocessing import preprocess_adata
 from scipy.sparse import csr_matrix
 
@@ -127,7 +127,7 @@ adata.write_h5ad(os.path.join(DATA_PATH, f"scRNA_all.h5ad"))
 import decoupler as dc
 
 # %%
-ref_markers = pd.read_excel("../data/ref/cardio_geneset_ref.xlsx", sheet_name="markers")
+ref_markers = pd.read_excel("../../data/ref/cardio_geneset_ref.xlsx", sheet_name="markers")
 #adata = sc.read_h5ad('../data/scRNA_all.h5ad')
 
 # %%
