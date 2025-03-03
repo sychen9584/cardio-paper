@@ -52,12 +52,48 @@ DATA_PATH = "/home/sychen9584/projects/cardio_paper/data"
 FIGURE_PATH = "/home/sychen9584/projects/cardio_paper/figures"
 
 # %% [markdown]
-# ## Figure 3A
+# ### Figure 3A
 
 # %%
 # Load image
 image_path = os.path.join(FIGURE_PATH, "figure3a.png")  # Adjust path as needed
 fig3a = mpimg.imread(image_path)
+
+# %% [markdown]
+# ### Figure 3B
+
+# %%
+go_df = pd.read_csv(os.path.join(DATA_PATH, "deg/scRNA_cell_type_fine_GO_highlight.csv"))
+
+# %%
+go_df['query'].replace({
+    'Granulocyte/Neutrophil': "Neutrophil",
+    'Peri/Smooth Muscle': 'Smooth Muscle'
+}, inplace=True)
+
+# rename some terms so they fit in plot
+go_df.at[14, 'name'] = 'MHC class II antigen presentation'
+go_df.at[13, 'name'] = 'myeloid cell activation'
+
+# %%
+go_df
+
+# %%
+cell_type_colors, cell_type_fine_colors = fig_func.get_celltype_colors()
+
+# %%
+ax = sns.barplot(data=go_df, x="neg_log_p_value", y="query", palette=cell_type_fine_colors)
+ax.set_xlim(0, 20)
+
+# 🔹 Annotate each bar correctly
+for index, p in enumerate(ax.patches):
+    go_term = go_df.iloc[index]['name']
+    ax.annotate(go_term,
+                (0.5, p.get_y() + p.get_height() / 2),  # Place at end of bar
+                ha='left', va='center', fontsize=8, color="black", xytext=(5, 0), textcoords="offset points")
+
+plt.show()
+
 
 # %% [markdown]
 # ## Main Figure
@@ -76,6 +112,19 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     ax1.axis('off')
     
     ax2 = fig.add_subplot(gs00[0, 1])
+    ax2 = sns.barplot(data=go_df, x="neg_log_p_value", y="query", palette=cell_type_fine_colors)
+    ax2.set_xlim(0, 20)
+    ax2.set_xlabel("-Log10 (P-value Adjust)")
+    ax2.set_ylabel("")
+
+    # 🔹 Annotate each bar correctly
+    for index, p in enumerate(ax2.patches):
+        go_term = go_df.iloc[index]['name']
+        ax2.annotate(go_term,
+                    (0.5, p.get_y() + p.get_height() / 2),  # Place at end of bar
+                    ha='left', va='center', fontsize=8, weight="bold", color="black", xytext=(5, 0), textcoords="offset points")
+    ax2.spines['right'].set_visible(False)
+    ax2.spines['top'].set_visible(False)
     
     # second row
     gs01 = gs0[1].subgridspec(1, 5, width_ratios=[0, 1, 0, 1, 0])

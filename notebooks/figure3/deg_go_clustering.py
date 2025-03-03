@@ -125,4 +125,47 @@ with plt.rc_context({"figure.dpi": 300, "figure.frameon": True,
     cm.ax.figure.savefig(os.path.join(FIGURE_PATH, "figure3a.png"), dpi=300, bbox_inches='tight', format='png')
     plt.show()
 
+# %% [markdown]
+# ## GO analysis on cell type fine annotations
+
+# %%
+from gprofiler import GProfiler
+
+# %%
+cell_type_fine_DEGs = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_cell_type_fine.csv'))
+cell_type_DEGs = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_cell_type.csv'))
+
+# %%
+deg_dict = cell_type_fine_DEGs.groupby('group')['names'].apply(list).to_dict()
+
+# %%
+gp = GProfiler(return_dataframe=True) #return pandas dataframe or plain python structures    )
+go_df = gp.profile(organism='mmusculus', user_threshold=0.001, significance_threshold_method='fdr', query=deg_dict, background=cell_type_fine_DEGs['names'].unique().tolist())
+
+# %%
+go_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_cell_type_fine_GO_processed.csv'), index=False)
+
+# %%
+highlight_idx = [181, 462, 1058, 1112, 419, 761, 116, 1321, 413, 2081, 1928, 1713, 545, 656, 488, 415, 8, 804, 224]
+highlight_df = go_df.loc[highlight_idx, :]
+
+# %%
+highlight_df['neg_log_p_value'] = -np.log10(highlight_df['p_value'])
+highlight_df = highlight_df[['name', 'p_value', 'neg_log_p_value', 'query']]
+
+# %%
+highlight_df
+
+# %%
+highlight_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_cell_type_fine_GO_highlight.csv'), index=False)
+
+# %% [markdown]
+# ### Compare # of DEGs between cell types for venn diagram visualization
+
+# %%
+
+# %%
+
+# %%
+
 # %%
