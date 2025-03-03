@@ -39,6 +39,8 @@ This repository provides a step-by-step Python implementation using the [scverse
 | Label transfer | Signac | scANVI | 
 | Visualization | ggplot2 | Matplotlib + Seaborn |
 | Perturbation analysis | Augur | pertpy |
+| Gene set enrichment | AUCell | decoupler |
+| Gene Ontology | clusterProfiler | gprofiler-official |
 
 **TODO**: to be expanded
 
