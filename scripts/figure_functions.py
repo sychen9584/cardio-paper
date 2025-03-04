@@ -8,14 +8,16 @@ import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patheffects as path_effects
+import matplotlib.cm as cm
 import plotly.graph_objects as go
 import plotly.io as pio
 
 from PIL import Image
 from io import BytesIO
 from adjustText import adjust_text
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib_venn import venn3_unweighted
 
 def repel_umap_labels(
     adata, groupby, include=None, ax=None, adjust_kwargs=None, text_kwargs=None
@@ -208,3 +210,45 @@ def add_median_labels(ax: plt.Axes, fmt: str = ".4f") -> None:
             path_effects.Stroke(linewidth=2, foreground=median.get_color()),
             path_effects.Normal(),
         ])
+        
+def venn3_custom(set1: set, set2: set, set3: set, labels: Tuple[str], title: str = "", 
+                 cmap: str = "Reds", ax: Optional[plt.Axes] = None, 
+                 set_label_size: int = 12, subset_label_size: int = 10, title_size: int = 12) -> plt.Axes:
+    """Create a custom Venn diagram for three sets."""
+    subset_sizes = {
+        "100": len(set1 - set2 - set3),
+        "010": len(set2 - set1 - set3),
+        "001": len(set3 - set1 - set2), 
+        "110": len(set1 & set2 - set3),  
+        "101": len(set1 & set3 - set2),  
+        "011": len(set2 & set3 - set1), 
+        "111": len(set1 & set2 & set3),  
+    }
+    cmap = cm.get_cmap(cmap)
+    norm = plt.Normalize(0, 100)
+    venn_color_dict = {key: cmap(norm(value)) for key, value in subset_sizes.items()}
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(6, 6))
+    
+    # Draw Venn diagram
+    venn = venn3_unweighted([set1, set2, set3], set_labels=labels)
+    # 🔹 Apply gradient fill to each region
+    for subset in ["100", "010", "001", "110", "101", "011", "111"]:
+        patch = venn.get_patch_by_id(subset)
+        if patch:
+            patch.set_color(venn_color_dict[subset])
+            patch.set_alpha(0.6)
+            patch.set_edgecolor("black")
+            
+    for label in venn.set_labels:
+        if label:
+            label.set_fontsize(set_label_size)
+
+    for label in venn.subset_labels:
+        if label:
+            label.set_fontsize(subset_label_size)
+            
+    ax.set_title(title, fontsize=title_size)
+
+    return ax

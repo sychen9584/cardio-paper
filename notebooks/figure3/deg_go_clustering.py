@@ -24,6 +24,8 @@ import scanpy as sc
 import matplotlib.pylab as plt
 import numpy as np
 import PyComplexHeatmap as pch
+from matplotlib_venn import venn3_unweighted
+import matplotlib.cm as cm
 import sys
 
 sys.path.append('../../scripts')
@@ -163,9 +165,111 @@ highlight_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_cell_type_fine_GO_highlig
 # ### Compare # of DEGs between cell types for venn diagram visualization
 
 # %%
+adata.obs[['month', 'sample_id']] = adata.obs['sample'].str.extract(r'(m\d+)_(s\d+)')
+
+# %% [markdown]
+# #### 3 months vs 12 months
 
 # %%
+# 🔹 Subset data for 3m vs 12m comparison
+adata_3m_12m = adata[adata.obs["month"].isin(["m3", "m12"])].copy()
 
 # %%
+adata_3m_12m.obs["cell_type"].unique()
+
+# %%
+deg_results = []
+
+# 🔹 Iterate over each unique cell type
+for cell_type in ["Macrophage", "Fibroblast", "Endothelial"]:
+    print(f"Running DEG analysis for {cell_type}...")
+
+    # 🔹 Subset AnnData for the specific cell type
+    adata_subset = adata_3m_12m[adata_3m_12m.obs["cell_type"] == cell_type].copy()
+
+    # 🔹 Run DE analysis between 3m and 12m
+    sc.tl.rank_genes_groups(adata_subset, groupby="month", reference="m3", method="wilcoxon", pts=True, use_raw=False)
+
+    # 🔹 Convert results to a DataFrame
+    deg_df = sc.get.rank_genes_groups_df(adata_subset, pval_cutoff=0.05, log2fc_min=1, group="m12")  # Compare 12m vs 3m
+    #deg_df = deg_df.query('pct_nz_group > 0.25') # Keep genes expressed in >50% of cells in the group
+    
+    deg_df["cell_type"] = cell_type
+    deg_results.append(deg_df)
+
+    print(f"DEGs found for {cell_type}: {deg_df.shape[0]} genes")
+    
+deg_results_df = pd.concat(deg_results)
+
+# %%
+deg_results_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_3m_vs_12m_DEG.csv'), index=False)
+
+# %% [markdown]
+# #### 12 months vs 24 months
+
+# %%
+# 🔹 Subset data for 3m vs 12m comparison
+adata_12m_24m = adata[adata.obs["month"].isin(["m12", "m24"])].copy()
+
+# %%
+deg_results = []
+
+# 🔹 Iterate over each unique cell type
+for cell_type in ["Macrophage", "Fibroblast", "Endothelial"]:
+    print(f"Running DEG analysis for {cell_type}...")
+
+    # 🔹 Subset AnnData for the specific cell type
+    adata_subset = adata_12m_24m[adata_12m_24m.obs["cell_type"] == cell_type].copy()
+
+    # 🔹 Run DE analysis between 12m and 24m
+    sc.tl.rank_genes_groups(adata_subset, groupby="month", reference="m12", method="wilcoxon", pts=True, use_raw=False)
+
+    # 🔹 Convert results to a DataFrame
+    deg_df = sc.get.rank_genes_groups_df(adata_subset, pval_cutoff=0.05, log2fc_min=1, group="m24")  # Compare 12m vs 3m
+    #deg_df = deg_df.query('pct_nz_group > 0.25') # Keep genes expressed in >50% of cells in the group
+    
+    deg_df["cell_type"] = cell_type
+    deg_results.append(deg_df)
+
+    print(f"DEGs found for {cell_type}: {deg_df.shape[0]} genes")
+    
+deg_results_df = pd.concat(deg_results)
+
+# %%
+deg_results_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_12m_vs_24m_DEG.csv'), index=False)
+
+# %% [markdown]
+# ### Venn diagram for DEGs
+
+# %%
+from matplotlib_venn import venn3_unweighted
+import matplotlib.cm as cm
+import figure_functions
+
+# %%
+#### 3 months vs 12 months
+deg_results_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_3m_vs_12m_DEG.csv'))
+
+# %%
+macrophage = set(deg_results_df[deg_results_df['cell_type'] == 'Macrophage']['names'].values)
+fibroblast = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['names'].values)
+endothelial = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
+
+# %%
+figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='3 months vs 12 months DEGs')
+plt.show()
+
+# %%
+#### 12 months vs 24 months
+deg_results_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_12m_vs_24m_DEG.csv'))
+
+# %%
+macrophage = set(deg_results_df[deg_results_df['cell_type'] == 'Macrophage']['names'].values)
+fibroblast = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['names'].values)
+endothelial = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
+
+# %%
+figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='12 months vs 24 months DEGs')
+plt.show()
 
 # %%

@@ -76,9 +76,6 @@ go_df.at[14, 'name'] = 'MHC class II antigen presentation'
 go_df.at[13, 'name'] = 'myeloid cell activation'
 
 # %%
-go_df
-
-# %%
 cell_type_colors, cell_type_fine_colors = fig_func.get_celltype_colors()
 
 # %%
@@ -94,6 +91,23 @@ for index, p in enumerate(ax.patches):
 
 plt.show()
 
+
+# %% [markdown]
+# ### Figure 3C
+
+# %%
+#### 3 months vs 12 months
+deg_results_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_3m_vs_12m_DEG.csv'))
+macrophage3v12 = set(deg_results_df[deg_results_df['cell_type'] == 'Macrophage']['names'].values)
+fibroblast3v12 = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['names'].values)
+endothelial3v12 = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
+
+# %%
+#### 12 months vs 24 months
+deg_results_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_12m_vs_24m_DEG.csv'))
+macrophage12v24 = set(deg_results_df[deg_results_df['cell_type'] == 'Macrophage']['names'].values)
+fibroblast12v24 = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['names'].values)
+endothelial12v24 = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
 
 # %% [markdown]
 # ## Main Figure
@@ -127,11 +141,15 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     ax2.spines['top'].set_visible(False)
     
     # second row
-    gs01 = gs0[1].subgridspec(1, 5, width_ratios=[0, 1, 0, 1, 0])
+    gs01 = gs0[1].subgridspec(1, 2, width_ratios=[1, 1])
     
-    ax3 = fig.add_subplot(gs01[0, 1])
+    ax3 = fig.add_subplot(gs01[0, 0])
+    fig_func.venn3_custom(macrophage3v12, fibroblast3v12, endothelial3v12,
+                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='3 months vs 12 months DEGs', ax=ax3)
     
-    ax4 = fig.add_subplot(gs01[0, 3])
+    ax4 = fig.add_subplot(gs01[0, 1])
+    fig_func.venn3_custom(macrophage12v24, fibroblast12v24, endothelial12v24,
+                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='12 months vs 24 months DEGs', ax=ax4)
     
     # third row
     gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 1, 3]) 
