@@ -26,6 +26,7 @@ import numpy as np
 import PyComplexHeatmap as pch
 from matplotlib_venn import venn3_unweighted
 import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 import sys
 
 sys.path.append('../../scripts')
@@ -174,32 +175,37 @@ adata.obs[['month', 'sample_id']] = adata.obs['sample'].str.extract(r'(m\d+)_(s\
 # 🔹 Subset data for 3m vs 12m comparison
 adata_3m_12m = adata[adata.obs["month"].isin(["m3", "m12"])].copy()
 
-# %%
-adata_3m_12m.obs["cell_type"].unique()
 
 # %%
-deg_results = []
-
-# 🔹 Iterate over each unique cell type
-for cell_type in ["Macrophage", "Fibroblast", "Endothelial"]:
-    print(f"Running DEG analysis for {cell_type}...")
-
-    # 🔹 Subset AnnData for the specific cell type
-    adata_subset = adata_3m_12m[adata_3m_12m.obs["cell_type"] == cell_type].copy()
-
-    # 🔹 Run DE analysis between 3m and 12m
-    sc.tl.rank_genes_groups(adata_subset, groupby="month", reference="m3", method="wilcoxon", pts=True, use_raw=False)
-
-    # 🔹 Convert results to a DataFrame
-    deg_df = sc.get.rank_genes_groups_df(adata_subset, pval_cutoff=0.05, log2fc_min=1, group="m12")  # Compare 12m vs 3m
-    #deg_df = deg_df.query('pct_nz_group > 0.25') # Keep genes expressed in >50% of cells in the group
+def compute_adata_pariwise_DEGs(adata, celltypes, groupby, group, reference, pval_cutoff=0.05, log2fc_cutoff=1, min_pts=0):
     
-    deg_df["cell_type"] = cell_type
-    deg_results.append(deg_df)
-
-    print(f"DEGs found for {cell_type}: {deg_df.shape[0]} genes")
+    deg_results = []
     
-deg_results_df = pd.concat(deg_results)
+    for celltype in celltypes:
+        
+        print(f"Running DEG analysis for {celltype}...")
+        adata_subset = adata[adata.obs["cell_type"] == celltype].copy()
+        sc.tl.rank_genes_groups(adata_subset, groupby=groupby, reference=reference, method="wilcoxon", pts=True, use_raw=False)
+        degs = sc.get.rank_genes_groups_df(adata_subset, group=group)
+        degs = degs.query('pct_nz_group > @min_pts and pvals_adj < @pval_cutoff')
+        degs['abs_lfc'] = np.abs(degs['logfoldchanges'])
+        degs = degs.query('abs_lfc > @log2fc_cutoff').drop('abs_lfc', axis=1)
+        
+        degs["cell_type"] = celltype
+        deg_results.append(degs)
+        
+        print(f"DEGs found for {celltype}: {degs.shape[0]} genes")
+    
+    deg_results = pd.concat(deg_results)
+    
+    return deg_results
+
+
+# %%
+deg_results_df = compute_adata_pariwise_DEGs(adata_3m_12m, 
+                                             celltypes=["Macrophage", "Fibroblast", "Endothelial"], 
+                                             groupby="month", group="m12", reference="m3", 
+                                             pval_cutoff=0.05, log2fc_cutoff=0.25, min_pts=0.25)
 
 # %%
 deg_results_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_3m_vs_12m_DEG.csv'), index=False)
@@ -212,28 +218,10 @@ deg_results_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_3m_vs_12m_DEG.csv'), in
 adata_12m_24m = adata[adata.obs["month"].isin(["m12", "m24"])].copy()
 
 # %%
-deg_results = []
-
-# 🔹 Iterate over each unique cell type
-for cell_type in ["Macrophage", "Fibroblast", "Endothelial"]:
-    print(f"Running DEG analysis for {cell_type}...")
-
-    # 🔹 Subset AnnData for the specific cell type
-    adata_subset = adata_12m_24m[adata_12m_24m.obs["cell_type"] == cell_type].copy()
-
-    # 🔹 Run DE analysis between 12m and 24m
-    sc.tl.rank_genes_groups(adata_subset, groupby="month", reference="m12", method="wilcoxon", pts=True, use_raw=False)
-
-    # 🔹 Convert results to a DataFrame
-    deg_df = sc.get.rank_genes_groups_df(adata_subset, pval_cutoff=0.05, log2fc_min=1, group="m24")  # Compare 12m vs 3m
-    #deg_df = deg_df.query('pct_nz_group > 0.25') # Keep genes expressed in >50% of cells in the group
-    
-    deg_df["cell_type"] = cell_type
-    deg_results.append(deg_df)
-
-    print(f"DEGs found for {cell_type}: {deg_df.shape[0]} genes")
-    
-deg_results_df = pd.concat(deg_results)
+deg_results_df = compute_adata_pariwise_DEGs(adata_12m_24m, 
+                                             celltypes=["Macrophage", "Fibroblast", "Endothelial"], 
+                                             groupby="month", group="m24", reference="m12", 
+                                             pval_cutoff=0.05, log2fc_cutoff=0.25, min_pts=0.25)
 
 # %%
 deg_results_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_12m_vs_24m_DEG.csv'), index=False)
@@ -256,7 +244,8 @@ fibroblast = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['na
 endothelial = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
 
 # %%
-figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='3 months vs 12 months DEGs')
+figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), 
+                              normalize_range=(0, 2500), title='3 months vs 12 months DEGs')
 plt.show()
 
 # %%
@@ -269,7 +258,158 @@ fibroblast = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast']['na
 endothelial = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
 
 # %%
-figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='12 months vs 24 months DEGs')
+figure_functions.venn3_custom(macrophage, fibroblast, endothelial, labels=('Macrophage', 'Fibroblast', 'Endothelial'), 
+                              normalize_range=(0, 2500), title='12 months vs 24 months DEGs')
 plt.show()
+
+# %% [markdown]
+# ### Figure 3D - scRNA-seq DEG heatmap for the three cell types
+
+# %%
+deg_results = []
+    
+for celltype in ["Macrophage", "Fibroblast", "Endothelial"]:
+    
+    print(f"Running DEG analysis for {celltype}...")
+    adata_subset = adata[adata.obs["cell_type"] == celltype].copy()
+    sc.tl.rank_genes_groups(adata_subset, groupby='month', reference="m3", method="wilcoxon", pts=True, use_raw=False)
+    degs = sc.get.rank_genes_groups_df(adata_subset, group=None)
+    
+    degs["cell_type"] = celltype
+    deg_results.append(degs)
+    
+deg_results = pd.concat(deg_results)
+
+# %%
+deg_results['abs_lfc'] = np.abs(deg_results['logfoldchanges'])
+
+# %%
+macrophage_degs = deg_results.query('cell_type == "Macrophage" and pvals_adj < 0.05 and abs_lfc > 0.25 and pct_nz_group > 0.25').names.unique().tolist()
+fibroblast_degs = deg_results.query('cell_type == "Fibroblast" and pvals_adj < 0.05 and abs_lfc > 0.25 and pct_nz_group > 0.25').names.unique().tolist()
+endothelial_degs = deg_results.query('cell_type == "Endothelial" and pvals_adj < 0.05 and abs_lfc > 0.25 and pct_nz_group > 0.25').names.unique().tolist()
+
+# %%
+macrophage_deg_df = deg_results[['names', 'group', 'cell_type', 'logfoldchanges']].query('cell_type == "Macrophage" and names in @macrophage_degs').\
+    drop(columns='cell_type').pivot(index='names', columns='group', values='logfoldchanges')
+fibroblast_deg_df = deg_results[['names', 'group', 'cell_type', 'logfoldchanges']].query('cell_type == "Fibroblast" and names in @fibroblast_degs').\
+    drop(columns='cell_type').pivot(index='names', columns='group', values='logfoldchanges')
+endothelial_deg_df = deg_results[['names', 'group', 'cell_type', 'logfoldchanges']].query('cell_type == "Endothelial" and names in @endothelial_degs').\
+    drop(columns='cell_type').pivot(index='names', columns='group', values='logfoldchanges')
+
+# %%
+macrophage_deg_df['m3'] = 0
+fibroblast_deg_df['m3'] = 0
+endothelial_deg_df['m3'] = 0
+
+macrophage_deg_df = macrophage_deg_df[['m3', 'm12', 'm24']]
+fibroblast_deg_df = fibroblast_deg_df[['m3', 'm12', 'm24']]
+endothelial_deg_df = endothelial_deg_df[['m3', 'm12', 'm24']]
+
+# %%
+macrophage_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'))
+fibroblast_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'))
+endothelial_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'))
+
+# %% [markdown]
+# ### Kmeans clustering
+
+# %%
+from sklearn.cluster import KMeans
+
+# %%
+macrophage_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'), index_col=0)
+fibroblast_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'), index_col=0)
+endothelial_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'), index_col=0)
+
+
+# %%
+def kmeans_elbow_plot(range_n_clusters, data, title, random_seed=42):
+    # 🔹 Test different cluster numbers (2 to 10)
+    range_n_clusters = range(*range_n_clusters)
+    wcss = []
+    for n_clusters in range_n_clusters:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=random_seed).fit(data)
+        wcss.append(kmeans.inertia_)
+        
+   # 🔹 Plot the Elbow Curve
+    plt.figure(figsize=(6,4))
+    plt.plot(range(2, 11), wcss, marker='o', linestyle='--')
+    plt.xlabel("Number of Clusters")
+    plt.ylabel("WCSS (Inertia)")
+    plt.title("Elbow Plot - " + title)
+    plt.show()
+
+
+# %%
+kmeans_elbow_plot((2, 11), macrophage_deg_df, "Macrophage") # 7 clusters
+
+# %%
+kmeans_elbow_plot((2, 11), fibroblast_deg_df, "Fibroblast") # 6 clusters
+
+# %%
+kmeans_elbow_plot((2, 11), endothelial_deg_df, "Endothelial") # 6 clusters
+
+
+# %%
+def kmeans_cluster(data, n_clusters, random_seed=42):
+    kmeans = KMeans(n_clusters=n_clusters, random_state=random_seed).fit(data)
+    cluster_labels = kmeans.labels_
+    return cluster_labels
+
+
+# %%
+macrophage_deg_df['cluster'] = kmeans_cluster(macrophage_deg_df, 7)
+fibroblast_deg_df['cluster'] = kmeans_cluster(fibroblast_deg_df, 4)
+endothelial_deg_df['cluster'] = kmeans_cluster(endothelial_deg_df, 4)
+
+# %%
+macrophage_deg_df.sort_values('cluster', inplace=True)
+fibroblast_deg_df.sort_values('cluster', inplace=True)
+endothelial_deg_df.sort_values('cluster', inplace=True)
+
+# %%
+macrophage_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'))
+fibroblast_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'))
+endothelial_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'))
+
+# %% [markdown]
+# ### Heatmap time
+
+# %%
+macrophage_annot = pd.DataFrame(macrophage_deg_df['cluster'])
+fibroblast_annot = pd.DataFrame(fibroblast_deg_df['cluster'])
+endothelial_annot = pd.DataFrame(endothelial_deg_df['cluster'])
+
+# %%
+macrophage_deg_df.drop(columns='cluster', inplace=True)
+macrophage_deg_df.columns = ['3 months', '12 months', '24 months']
+
+# %%
+# 🔹 Extract unique cluster labels
+unique_clusters = macrophage_annot["cluster"].unique()
+# 🔹 Convert colormap to a dictionary
+color_dict = {cluster: mcolors.to_hex(cm.get_cmap("Set3")(i % 10)) for i, cluster in enumerate(unique_clusters)}
+
+
+row_ha = pch.HeatmapAnnotation(
+    cluster=pch.anno_simple(macrophage_annot.cluster, colors=color_dict, add_text=True, legend=False), 
+    axis=0, verbose=1, legend=False, label_side='top',
+)
+
+plt.figure(figsize=(3, 7))
+hm = pch.ClusterMapPlotter(
+    data=macrophage_deg_df,  # Now sorted by `cell_type_fine`
+    left_annotation=row_ha,
+    row_cluster=False, col_cluster=False, row_dendrogram=False, col_dendrogram=False,
+    cmap='coolwarm', label="", vmin=-2.5, vmax=2.5, row_split=macrophage_annot["cluster"], row_split_gap=0.75, row_split_order=[6, 2, 3, 1, 0, 5, 4],
+    legend_hpad=0, legend_vpad=144, rasterized=True, show_colnames=True, col_names_side='top', xticklabels_kws={'labelrotation':45},
+)
+
+# 🔹 Add a title
+plt.suptitle("Macrophage", fontsize=14 , x=0.6, y=1.07)
+plt.show()
+
+# %%
+import matplotlib.patches as patches
 
 # %%

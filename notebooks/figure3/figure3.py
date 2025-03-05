@@ -145,11 +145,13 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     
     ax3 = fig.add_subplot(gs01[0, 0])
     fig_func.venn3_custom(macrophage3v12, fibroblast3v12, endothelial3v12,
-                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='3 months vs 12 months DEGs', ax=ax3)
+                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), 
+                          normalize_range=(0, 2500), title='3 months vs 12 months DEGs', ax=ax3)
     
     ax4 = fig.add_subplot(gs01[0, 1])
     fig_func.venn3_custom(macrophage12v24, fibroblast12v24, endothelial12v24,
-                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), title='12 months vs 24 months DEGs', ax=ax4)
+                          labels=('Macrophage', 'Fibroblast', 'Endothelial'), 
+                          normalize_range=(0, 2500), title='12 months vs 24 months DEGs', ax=ax4)
     
     # third row
     gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 1, 3]) 

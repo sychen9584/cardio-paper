@@ -212,7 +212,7 @@ def add_median_labels(ax: plt.Axes, fmt: str = ".4f") -> None:
         ])
         
 def venn3_custom(set1: set, set2: set, set3: set, labels: Tuple[str], title: str = "", 
-                 cmap: str = "Reds", ax: Optional[plt.Axes] = None, 
+                 cmap: str = "Reds", ax: Optional[plt.Axes] = None, normalize_range: Tuple[int] = (0, 100),
                  set_label_size: int = 12, subset_label_size: int = 10, title_size: int = 12) -> plt.Axes:
     """Create a custom Venn diagram for three sets."""
     subset_sizes = {
@@ -225,7 +225,7 @@ def venn3_custom(set1: set, set2: set, set3: set, labels: Tuple[str], title: str
         "111": len(set1 & set2 & set3),  
     }
     cmap = cm.get_cmap(cmap)
-    norm = plt.Normalize(0, 100)
+    norm = plt.Normalize(vmin=normalize_range[0], vmax=normalize_range[1])
     venn_color_dict = {key: cmap(norm(value)) for key, value in subset_sizes.items()}
     
     if ax is None:
