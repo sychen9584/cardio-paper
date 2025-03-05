@@ -347,7 +347,7 @@ kmeans_elbow_plot((2, 11), macrophage_deg_df, "Macrophage") # 7 clusters
 kmeans_elbow_plot((2, 11), fibroblast_deg_df, "Fibroblast") # 6 clusters
 
 # %%
-kmeans_elbow_plot((2, 11), endothelial_deg_df, "Endothelial") # 6 clusters
+kmeans_elbow_plot((2, 11), endothelial_deg_df, "Endothelial") #5 clusters
 
 
 # %%
@@ -359,57 +359,90 @@ def kmeans_cluster(data, n_clusters, random_seed=42):
 
 # %%
 macrophage_deg_df['cluster'] = kmeans_cluster(macrophage_deg_df, 7)
-fibroblast_deg_df['cluster'] = kmeans_cluster(fibroblast_deg_df, 4)
-endothelial_deg_df['cluster'] = kmeans_cluster(endothelial_deg_df, 4)
+#fibroblast_deg_df['cluster'] = kmeans_cluster(fibroblast_deg_df, 6)
+#endothelial_deg_df['cluster'] = kmeans_cluster(endothelial_deg_df, 4)
 
 # %%
 macrophage_deg_df.sort_values('cluster', inplace=True)
-fibroblast_deg_df.sort_values('cluster', inplace=True)
-endothelial_deg_df.sort_values('cluster', inplace=True)
+#fibroblast_deg_df.sort_values('cluster', inplace=True)
+#endothelial_deg_df.sort_values('cluster', inplace=True)
 
 # %%
 macrophage_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'))
-fibroblast_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'))
-endothelial_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'))
+#fibroblast_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'))
+#endothelial_deg_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'))
 
 # %% [markdown]
 # ### Heatmap time
 
 # %%
-macrophage_annot = pd.DataFrame(macrophage_deg_df['cluster'])
-fibroblast_annot = pd.DataFrame(fibroblast_deg_df['cluster'])
-endothelial_annot = pd.DataFrame(endothelial_deg_df['cluster'])
+macrophage_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'), index_col=0)
+fibroblast_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'), index_col=0)
+endothelial_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'), index_col=0)
+
 
 # %%
-macrophage_deg_df.drop(columns='cluster', inplace=True)
-macrophage_deg_df.columns = ['3 months', '12 months', '24 months']
+def plot_log2fc_heatmap(df, title, column_names, cluster_col, cluster_order, 
+                        cmap='coolwarm', vmin=-2.5, vmax=2.5, title_xpad=0.6, title_ypad=1.1, 
+                        plot_legend=True, ax=None):
+    """
+    Plot a log2 fold-change heatmap using PyComplexHeatmap.
+
+    Parameters:
+        df (pd.DataFrame): Dataframe containing log2 fold changes.
+        title (str): Title for the heatmap.
+        cluster_col (str): Column containing cluster annotations.
+        cluster_order (list): Custom order for cluster splitting.
+        cmap (str): Colormap for the heatmap.
+        vmin (float): Minimum value for colormap scaling.
+        vmax (float): Maximum value for colormap scaling.
+        plot_legend (bool): Whether to display the heatmap legend.
+        ax (matplotlib.axes._subplots.AxesSubplot, optional): Existing axis to plot on.
+
+    Returns:
+        matplotlib.axes._subplots.AxesSubplot: The axis containing the heatmap.
+    """
+    
+    annot_df = pd.DataFrame(df[cluster_col])
+    unique_clusters = annot_df[cluster_col].unique()
+    color_dict = {cluster: mcolors.to_hex(cm.get_cmap("Set3")(i % 10)) for i, cluster in enumerate(unique_clusters)}
+    
+    plot_df = df.drop(columns=cluster_col)
+    plot_df.columns = column_names
+
+    row_ha = pch.HeatmapAnnotation(
+        cluster=pch.anno_simple(annot_df[cluster_col], colors=color_dict, add_text=True, legend=False), 
+        axis=0, verbose=1, legend=False, label_side='top',
+    )
+
+    # Create figure and axis if none provided
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(3, 7))
+        
+    hm = pch.ClusterMapPlotter(
+        data=plot_df,  # Now sorted by `cell_type_fine`
+        left_annotation=row_ha,
+        row_cluster=False, col_cluster=False, row_dendrogram=False, col_dendrogram=False,
+        cmap=cmap, label="", vmin=vmin, vmax=vmax, row_split=annot_df[cluster_col], row_split_gap=0.75, row_split_order=cluster_order,
+        legend_hpad=0, legend_vpad=144, rasterized=True, show_colnames=True, col_names_side='top', xticklabels_kws={'labelrotation':45},
+        plot_legend=plot_legend
+    )
+
+    ax.set_title(title, fontsize=14 , x=title_xpad, y=title_ypad)
+    
+    return ax
+
 
 # %%
-# 🔹 Extract unique cluster labels
-unique_clusters = macrophage_annot["cluster"].unique()
-# 🔹 Convert colormap to a dictionary
-color_dict = {cluster: mcolors.to_hex(cm.get_cmap("Set3")(i % 10)) for i, cluster in enumerate(unique_clusters)}
-
-
-row_ha = pch.HeatmapAnnotation(
-    cluster=pch.anno_simple(macrophage_annot.cluster, colors=color_dict, add_text=True, legend=False), 
-    axis=0, verbose=1, legend=False, label_side='top',
-)
-
-plt.figure(figsize=(3, 7))
-hm = pch.ClusterMapPlotter(
-    data=macrophage_deg_df,  # Now sorted by `cell_type_fine`
-    left_annotation=row_ha,
-    row_cluster=False, col_cluster=False, row_dendrogram=False, col_dendrogram=False,
-    cmap='coolwarm', label="", vmin=-2.5, vmax=2.5, row_split=macrophage_annot["cluster"], row_split_gap=0.75, row_split_order=[6, 2, 3, 1, 0, 5, 4],
-    legend_hpad=0, legend_vpad=144, rasterized=True, show_colnames=True, col_names_side='top', xticklabels_kws={'labelrotation':45},
-)
-
-# 🔹 Add a title
-plt.suptitle("Macrophage", fontsize=14 , x=0.6, y=1.07)
+plot_log2fc_heatmap(macrophage_deg_df, "Macrophage", ['3 months', '12 months', '24 months'], 'cluster', [4, 6, 0, 3, 5, 1, 2], title_ypad=1.15)
 plt.show()
 
 # %%
-import matplotlib.patches as patches
+plot_log2fc_heatmap(fibroblast_deg_df, "Fibroblast", ['3 months', '12 months', '24 months'], 'cluster', [3, 4, 0, 5, 1, 2], title_ypad=1.15)
+plt.show()
+
+# %%
+plot_log2fc_heatmap(endothelial_deg_df, "Endothelial", ['3 months', '12 months', '24 months'], 'cluster', [3, 2, 0 ,1], title_ypad=1.15)
+plt.show()
 
 # %%

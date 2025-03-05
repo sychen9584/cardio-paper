@@ -23,17 +23,11 @@
 # %%
 import os
 import pandas as pd
-import numpy as np
 import scanpy as sc
 import seaborn as sns
-import matplotlib as mpl
-import matplotlib.colors as mcolors
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg  # Load images
 import matplotlib.gridspec as gridspec
-
-import starbars
 
 import sys
 sys.path.append('../../scripts')
@@ -46,6 +40,11 @@ sc.settings.set_figure_params(
     frameon=True,
 )
 # %matplotlib inline
+
+plt.rcParams["axes.grid"] = False  # Disable grids for all plots
+plt.rcParams["grid.color"] = "white"  # Ensure grids are fully invisible
+plt.rcParams["grid.alpha"] = 0  # Remove any transparency effects
+plt.grid(False)  # Turn off grids explicitly
 
 # %%
 DATA_PATH = "/home/sychen9584/projects/cardio_paper/data"
@@ -110,6 +109,25 @@ fibroblast12v24 = set(deg_results_df[deg_results_df['cell_type'] == 'Fibroblast'
 endothelial12v24 = set(deg_results_df[deg_results_df['cell_type'] == 'Endothelial']['names'].values)
 
 # %% [markdown]
+# ### Figure 3D
+
+# %%
+macrophage_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'), index_col=0)
+fibroblast_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'), index_col=0)
+endothelial_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'), index_col=0)
+
+# %%
+endo_hm = fig_func.plot_log2fc_heatmap(endothelial_deg_df, "Endothelial", ['3 months', '12 months', '24 months'], 'cluster', [3, 2, 0 ,1], title_ypad=1.1, plot_legend=False)
+fib_hm = fig_func.plot_log2fc_heatmap(fibroblast_deg_df, "Fibroblast", ['3 months', '12 months', '24 months'], 'cluster', [3, 4, 0, 5, 1, 2], title_ypad=1.1, plot_legend=False)
+mac_hm = fig_func.plot_log2fc_heatmap(macrophage_deg_df, "Macrophage", ['3 months', '12 months', '24 months'], 'cluster', [4, 6, 0, 3, 5, 1, 2], title_ypad=1.1, legend_vpad=260)
+plt.show()
+
+# %%
+endo_img = fig_func.ax_to_image(endo_hm)
+fib_img = fig_func.ax_to_image(fib_hm)
+mac_img = fig_func.ax_to_image(mac_hm)
+
+# %% [markdown]
 # ## Main Figure
 
 # %%
@@ -122,7 +140,7 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     # first row
     gs00 = gs0[0].subgridspec(1, 2, width_ratios=[1, 1])
     ax1 = fig.add_subplot(gs00[0, 0])
-    ax1.imshow(fig3a)
+    ax1.imshow(fig3a, aspect="auto")
     ax1.axis('off')
     
     ax2 = fig.add_subplot(gs00[0, 1])
@@ -154,11 +172,20 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
                           normalize_range=(0, 2500), title='12 months vs 24 months DEGs', ax=ax4)
     
     # third row
-    gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 1, 3]) 
+    gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 1.1, 3]) 
     
     ax5 = fig.add_subplot(gs02[0, 0])
+    ax5.imshow(endo_img, aspect="auto")
+    ax5.axis('off')
+    
     ax6 = fig.add_subplot(gs02[0, 1])
+    ax6.imshow(fib_img, aspect="auto")
+    ax6.axis('off')
+    
     ax7 = fig.add_subplot(gs02[0, 2])
+    ax7.imshow(mac_img, aspect="auto")
+    ax7.axis('off')
+    
     ax8 = fig.add_subplot(gs02[0, 3])
     
     axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
@@ -174,5 +201,9 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     fig.tight_layout()
     plt.show()
+
+# %%
+
+# %%
 
 # %%
