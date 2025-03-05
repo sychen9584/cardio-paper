@@ -25,7 +25,7 @@ This repository provides a step-by-step Python implementation using the [scverse
 - [x] scATAC-seq processing
 - [x] [Figure 1: Integrated single-cell transcriptomic and epigenomic anlaysis of no-cardiac (non-CM) cells during aging](figures/figure1.png)
 - [X] [Figure 2: Gene signatures profiling of aging-susceptible of cardia non-myocyte changes](figures/figure2.png)
-- [ ] Figure 3: Differentially expressed gnees and cluster analysis during aging
+- [x] [Figure 3: Differentially expressed gnees and cluster analysis during aging](figures/figure3.png)
 - [ ] Figure 4: Cell-cell communication during aging
 - [ ] Figure 5: Gene resulatory networks during aging by single-cell regulatory network inference and clustering (SCENIC)
 - [ ] Figure 6: Integrated single-cell ATAC seq epigenomic analysis of non-CM cells during aging
