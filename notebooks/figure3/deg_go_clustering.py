@@ -445,4 +445,52 @@ plt.show()
 plot_log2fc_heatmap(endothelial_deg_df, "Endothelial", ['3 months', '12 months', '24 months'], 'cluster', [3, 2, 0 ,1], title_ypad=1.15)
 plt.show()
 
+# %% [markdown]
+# ## GO analysis on specific clusters
+
+# %%
+from gprofiler import GProfiler
+
+# %%
+macrophage_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_macrophage_logfc.csv'), index_col=0)
+fibroblast_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_fibroblast_logfc.csv'), index_col=0)
+endothelial_deg_df = pd.read_csv(os.path.join(DATA_PATH, 'deg/scRNA_endothelial_logfc.csv'), index_col=0)
+
+# %%
+cluster_dict = {
+    'endo_up': endothelial_deg_df.query('cluster == 3').index.tolist(),
+    'endo_down': endothelial_deg_df.query('cluster == 1').index.tolist(),
+    
+    'fib_up': fibroblast_deg_df.query('cluster == 3').index.tolist(),
+    'fib_down': fibroblast_deg_df.query('cluster == 2').index.tolist(),
+    
+    'mac_up': macrophage_deg_df.query('cluster == 4').index.tolist(),
+    'mac_down': macrophage_deg_df.query('cluster == 1').index.tolist()
+}
+
+# %%
+gp = GProfiler(return_dataframe=True) #return pandas dataframe or plain python structures  )
+go_df = gp.profile(organism='mmusculus', user_threshold=0.05, significance_threshold_method='fdr', sources=["GO:BP", "GO:CC", "KEGG"], query=cluster_dict, background=adata.var_names.tolist())
+
+# %%
+go_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_cluster_GO_processed.csv'), index=False)
+
+# %%
+highlight_idx = [1537, 2355, 2568, 230, 2629, 3448, 1156, 1570, 1779, 693, 195, 233, 213, 305, 455, 461, 189, 205]
+highlight_df = go_df.loc[highlight_idx, :]
+
+# %%
+highlight_df['neg_log_p_value'] = -np.log10(highlight_df['p_value'])
+highlight_df = highlight_df[['name', 'p_value', 'neg_log_p_value', 'query']]
+
+# %%
+highlight_df['query'] = pd.Categorical(highlight_df['query'], categories=['endo_up', 'endo_down', 'fib_up', 'fib_down', 'mac_up', 'mac_down'], ordered=True)
+highlight_df.sort_values(['query', 'neg_log_p_value'], ascending=[True, False], inplace=True)
+
+# %%
+highlight_df
+
+# %%
+highlight_df.to_csv(os.path.join(DATA_PATH, 'deg/scRNA_cluster_GO_highlight.csv'), index=False)
+
 # %%

@@ -320,3 +320,23 @@ def ax_to_image(ax):
 
     buf.close()
     return img_array
+
+
+def cluster_go_barplot(df, title, hue, color_dict, figsize=(4, 4), ax=None):
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+    ax = sns.barplot(data=df, x="neg_log_p_value", y="name", hue=hue, palette=color_dict, ax=ax)
+    
+    for label, color in zip(ax.get_yticklabels(), df[hue].map(color_dict)):
+        label.set_color(color)
+        
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+        
+    ax.set_title(title, x=0)
+    ax.set_ylabel("")
+    ax.set_xlabel("-Log10(P-value Adjust)")
+    
+    ax.legend_.remove()
+
+    return ax

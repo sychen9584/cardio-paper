@@ -27,6 +27,8 @@ import scanpy as sc
 import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg  # Load images
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 import matplotlib.gridspec as gridspec
 
 import sys
@@ -128,6 +130,36 @@ fib_img = fig_func.ax_to_image(fib_hm)
 mac_img = fig_func.ax_to_image(mac_hm)
 
 # %% [markdown]
+# ### Figure 3E
+
+# %%
+go_cluster_df = pd.read_csv(os.path.join(DATA_PATH, "deg/scRNA_cluster_GO_highlight.csv"))
+
+# %%
+go_cluster_df['type'] = go_cluster_df['query'].apply(lambda x: "up" if "up" in x else "down")
+
+go_palette = cm.get_cmap('Set1')
+go_colors = {"up": mcolors.to_hex(go_palette(0)), "down":mcolors.to_hex(go_palette(1))}
+
+# %%
+mac_go_df =  go_cluster_df.query('query.isin(["mac_up", "mac_down"])')
+fib_go_df = go_cluster_df.query('query.isin(["fib_up", "fib_down"])')
+endo_go_df = go_cluster_df.query('query.isin(["endo_up", "endo_down"])')
+
+# %%
+endo_gbar = fig_func.cluster_go_barplot(endo_go_df, "", "type", go_colors, figsize=(5, 3))
+fib_gbar = fig_func.cluster_go_barplot(fib_go_df, "", "type", go_colors, figsize=(5, 3.5))
+mac_gbar = fig_func.cluster_go_barplot(mac_go_df, "", "type", go_colors, figsize=(5, 3))
+
+# %%
+endo_gbar_img = fig_func.ax_to_image(endo_gbar)
+fib_gbar_img = fig_func.ax_to_image(fib_gbar)
+mac_gbar_img = fig_func.ax_to_image(mac_gbar)
+
+# %%
+plt.show()
+
+# %% [markdown]
 # ## Main Figure
 
 # %%
@@ -172,7 +204,7 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
                           normalize_range=(0, 2500), title='12 months vs 24 months DEGs', ax=ax4)
     
     # third row
-    gs02 = gs0[2].subgridspec(1, 4, width_ratios=[1, 1, 1.1, 3]) 
+    gs02 = gs0[2].subgridspec(1, 5, width_ratios=[1, 1, 1.1, 0, 3]) 
     
     ax5 = fig.add_subplot(gs02[0, 0])
     ax5.imshow(endo_img, aspect="auto")
@@ -186,13 +218,26 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     ax7.imshow(mac_img, aspect="auto")
     ax7.axis('off')
     
-    ax8 = fig.add_subplot(gs02[0, 3])
+    gs_sub = gs02[0, 4].subgridspec(3, 1, height_ratios=[1, 1, 1])  # 3 rows inside ax8
+
+    ax8_1 = fig.add_subplot(gs_sub[0, 0])  # First row inside ax8
+    ax8_1.imshow(endo_gbar_img, aspect="auto")
+    ax8_1.axis('off')
+    ax8_1.set_title("Endothelial")
     
-    axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8]
-    for i, ax in enumerate(axes, 1):
-        ax.grid(False)
+    ax8_2 = fig.add_subplot(gs_sub[1, 0])  # Second row inside ax8
+    ax8_2.imshow(fib_gbar_img, aspect="auto")
+    ax8_2.axis('off')
+    ax8_2.set_title("Fibroblast")
     
-    axes_heading = [ax for ax in axes if ax not in [ax4, ax6, ax7]]
+    ax8_3 = fig.add_subplot(gs_sub[2, 0])  # Third row inside ax8
+    ax8_3.imshow(mac_gbar_img, aspect="auto")
+    ax8_3.axis('off')
+    ax8_3.set_title("Macrophage")
+        
+    axes = [ax1, ax2, ax3, ax4, ax5, ax6, ax7, ax8_1, ax8_2, ax8_3]
+    
+    axes_heading = [ax for ax in axes if ax not in [ax4, ax6, ax7, ax8_2, ax8_3]]
     for i, ax in enumerate(axes_heading, 1):
         ax.text(-0.1, 1.1, f"{chr(64+i)}", transform=ax.transAxes, fontsize=20, fontweight='bold', va='top', ha='left') # subfigure labels
     
@@ -203,7 +248,6 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     plt.show()
 
 # %%
-
-# %%
+fig.savefig(os.path.join(FIGURE_PATH, "figure3.png"), bbox_inches='tight', dpi=300)
 
 # %%
