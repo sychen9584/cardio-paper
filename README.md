@@ -27,7 +27,7 @@ This repository provides a step-by-step Python implementation using the [scverse
 - [X] [Figure 2: Gene signatures profiling of aging-susceptible of cardiac non-myocyte changes](figures/figure2.png)
 - [x] [Figure 3: Differentially expressed genes and cluster analysis during aging](figures/figure3.png)
 - [ ] Figure 4: Cell-cell communication during aging
-- [ ] Figure 5: Gene resulatory networks during aging by single-cell regulatory network inference and clustering (SCENIC)
+- [ ] Figure 5: Gene regulatory networks during aging by single-cell regulatory network inference and clustering (SCENIC)
 - [ ] Figure 6: Integrated single-cell ATAC seq epigenomic analysis of non-CM cells during aging
       
 ## Comparison of tech stack
