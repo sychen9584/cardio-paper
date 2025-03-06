@@ -24,8 +24,6 @@ import scanpy as sc
 import matplotlib.pylab as plt
 import numpy as np
 import PyComplexHeatmap as pch
-from matplotlib_venn import venn3_unweighted
-import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 import sys
 
@@ -485,7 +483,7 @@ highlight_df = highlight_df[['name', 'p_value', 'neg_log_p_value', 'query']]
 
 # %%
 highlight_df['query'] = pd.Categorical(highlight_df['query'], categories=['endo_up', 'endo_down', 'fib_up', 'fib_down', 'mac_up', 'mac_down'], ordered=True)
-highlight_df.sort_values(['query', 'neg_log_p_value'], ascending=[True, False], inplace=True)
+highlight_df.sort_values(['query', 'neg_log_p_value'], ascending=[True, True], inplace=True)
 
 # %%
 highlight_df

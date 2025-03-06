@@ -41,7 +41,7 @@ DATA_PATH = "/home/sychen9584/projects/cardio_paper/data/"
 FIGURE_PATH = "/home/sychen9584/projects/cardio_paper/figures"
 
 # %%
-adata = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_all.h5ad"))
+cadata = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_all.h5ad"))
 
 # %%
 # convert to human genes symbols by capitalizing the gene names
