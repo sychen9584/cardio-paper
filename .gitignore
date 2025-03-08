@@ -23,6 +23,7 @@ __pycache__/
 *.csv
 *.tbi
 *.txt
+*.rds
 
 # Logs and reports
 *.log

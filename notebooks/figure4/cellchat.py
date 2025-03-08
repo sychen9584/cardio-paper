@@ -67,14 +67,34 @@ adata_m3.write_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m3.h5ad"))
 adata_m12.write_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m12.h5ad"))
 adata_m24.write_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m24.h5ad"))
 
+# %% [markdown]
+# # Run Cell chat
+
+# %%
+#adata_m3 = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m3.h5ad"))
+#adata_m12 = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m12.h5ad"))
+adata_m24 = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scRNA_m24.h5ad"))
+
 # %%
 # possible to run cellchat on python but it's missing a lot of functions
-m3_cc = li.mt.cellchat(adata_m3, groupby="cell_type_fine", n_jobs=4, seed=42, verbose=True, use_raw=False, inplace=False)
+#m3_cc = li.mt.cellchat(adata_m3, groupby="cell_type_fine", min_cells=10, n_jobs=4, seed=42, verbose=True, use_raw=False, inplace=False)
+#m12_cc = li.mt.cellchat(adata_m12, groupby="cell_type_fine", min_cells=10, n_jobs=4, seed=42, verbose=True, use_raw=False, inplace=False)
+m24_cc = li.mt.cellchat(adata_m24, groupby="cell_type_fine", min_cells=10, n_jobs=4, seed=42, verbose=True, use_raw=False, inplace=False)
 
 # %%
-m3_cc = m3_cc.query('cellchat_pvals < 0.05')
+#m3_cc = m3_cc.query('cellchat_pvals < 0.05')
+#m12_cc = m12_cc.query('cellchat_pvals < 0.05')
+m24_cc = m24_cc.query('cellchat_pvals < 0.05')
 
 # %%
-m3_cc
+#m3_cc.to_csv(os.path.join(DATA_PATH, "cellchat/m3_cellchat.csv"))
+#m12_cc.to_csv(os.path.join(DATA_PATH, "cellchat/m12_cellchat.csv"))
+m24_cc.to_csv(os.path.join(DATA_PATH, "cellchat/m24_cellchat.csv"))
+
+# %%
+m24_cc.query('ligand == "S100A9" and receptor == "CD36"')
+
+# %%
+# ?li.mt.cellchat
 
 # %%
