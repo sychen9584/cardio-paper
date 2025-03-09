@@ -24,6 +24,9 @@ __pycache__/
 *.tbi
 *.txt
 *.rds
+*.loom
+*.tbl
+
 
 # Logs and reports
 *.log
