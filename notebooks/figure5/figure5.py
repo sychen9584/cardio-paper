@@ -14,6 +14,10 @@
 # ---
 
 # %%
+# %load_ext autoreload
+# %autoreload 2
+
+# %%
 import os
 import pandas as pd
 import scanpy as sc
@@ -45,6 +49,10 @@ plt.grid(False)  # Turn off grids explicitly
 DATA_PATH = "/home/sychen9584/projects/cardio_paper/data"
 FIGURE_PATH = "/home/sychen9584/projects/cardio_paper/figures"
 
+# %%
+fig5a = plt.imread(f"{FIGURE_PATH}/figure5/figure5a.png")
+fig5b = plt.imread(f"{FIGURE_PATH}/figure5/figure5b.png")
+
 # %% [markdown]
 # # Main Figure
 
@@ -61,7 +69,12 @@ with plt.rc_context({"figure.figsize": (12, 18), "figure.dpi": 150, "figure.fram
     # First row
     gs00 = gs0[0].subgridspec(1, 2, width_ratios=[1, 1])
     ax1_1 = fig.add_subplot(gs00[0])
+    ax1_1.imshow(fig5a)
+    ax1_1.axis('off')
+    
     ax1_2 = fig.add_subplot(gs00[1])
+    ax1_2.imshow(fig5b)
+    ax1_2.axis('off')
 
     # Second row 
     gs01 = gs0[1].subgridspec(1, 4, width_ratios=[1, 1, 1, 1])
