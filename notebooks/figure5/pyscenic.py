@@ -24,6 +24,7 @@ import pandas as pd
 import scanpy as sc
 import loompy as lp
 from matplotlib import pyplot as plt
+import sys
 
 sys.path.append('../../scripts')
 import figure_functions as fig_func
@@ -58,6 +59,12 @@ scenic_loom_input = os.path.join(DATA_PATH, "scenic/input.loom")
 adj_output = os.path.join(DATA_PATH, "scenic/adj.tsv")
 
 # %%
+sc.pp.filter_genes(adata, min_cells=265) # expressed in at least 1% of the cells
+
+# %%
+adata.var.set_index("mouse_genesymbol", inplace=True)
+
+# %%
 # create basic row and column attributes for the loom file:
 row_attrs = {
     "Gene": np.array(adata.var_names) ,
@@ -69,29 +76,5 @@ col_attrs = {
 }
 lp.create(scenic_loom_input, adata.X.transpose(), row_attrs, col_attrs)
 
-# %% [markdown]
-# ## Phase Ia: GRN inference using the GRNBoost2 algorithm
-
 # %%
-tf_file = os.path.join(DATA_PATH, "ref/mm_mgi_tfs.txt")
-
-# %%
-# !pyscenic grn {scenic_loom_input} {tf_file} -o {adj_output} --num_workers 1
-
-# %%
-import loompy
-
-# %%
-with loompy.connect(scenic_loom_input) as ds:
-    print("Shape of Loom file:", ds.shape)  # Should NOT be (0,0)
-    print("Gene names:", ds.ra.keys())  # Should contain gene-related keys
-    print("Cell names:", ds.ca.keys())  # Should contain cell metadata keys
-
-# %%
-from dask.distributed import Client
-
-client = Client(n_workers=1, threads_per_worker=1, memory_limit="16GB")
-print(client)
-
-
-# %%
+# After running on AWS
