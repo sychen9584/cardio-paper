@@ -1,4 +1,5 @@
 import os
+import starbars
 import pandas as pd
 import numpy as np
 import scanpy as sc
@@ -8,6 +9,7 @@ import matplotlib as mpl
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib.ticker as mticker
 import matplotlib.patheffects as path_effects
 import matplotlib.cm as cm
 import plotly.graph_objects as go
@@ -338,5 +340,84 @@ def cluster_go_barplot(df, title, hue, color_dict, figsize=(4, 4), ax=None):
     ax.set_xlabel("-Log10(P-value Adjust)")
     
     ax.legend_.remove()
+
+    return ax
+
+
+def tf_activity_lineplot(data, regulon_dict, tf, legend=True, significance=None, hue=None, palette=None, ax=None):
+    
+    data = data[data['TF'] == tf]
+    
+    gene_num = len(regulon_dict[tf])
+    
+    title = f"{tf} ({gene_num}g)"
+    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 4))
+    
+    sns.lineplot(x='month', y='TF_activity', marker='o', ci=None, hue=hue, data=data, palette=palette, ax=ax)
+    ax.set_title(title)
+    ax.set_ylabel("Regulon Activity")
+    ax.set_xlabel("")
+    
+    if significance:
+        starbars.draw_annotation(significance, ax=ax)
+    
+    if legend:
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    else:
+        ax.get_legend().remove()
+        
+    ax.set_xticklabels(["m3", "m12", "m24"])
+    
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    
+    return ax
+
+
+def plot_go_dotplot(df, tf, ax=None):
+    """
+    Generate a GO enrichment dot plot for a given TF with its own colorbar in the bottom-right.
+    """
+    df_plot = df.query(f'query=="{tf}"').sort_values("GeneRatio", ascending=False)
+
+    # Normalize hue range for the colorbar (separate for each subplot)
+    norm = mcolors.Normalize(vmin=df_plot["logP"].min(), vmax=df_plot["logP"].max())
+    sm = cm.ScalarMappable(cmap="coolwarm", norm=norm)
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(4, 6))
+    else:
+        fig = ax.get_figure()  # Get figure from provided ax
+
+    # Scatter plot
+    scatter = sns.scatterplot(
+        data=df_plot, 
+        x="GeneRatio", 
+        y="name", 
+        hue="logP",  # Coloring based on logP
+        hue_norm=(df_plot["logP"].min(), df_plot["logP"].max()), 
+        size="intersection_size",  # Size based on intersection size
+        palette="coolwarm", 
+        edgecolor="black",
+        ax=ax
+    )
+
+    # Extract legend handles and labels
+    h, l = ax.get_legend_handles_labels()
+    ax.legend(h[7:], l[7:], bbox_to_anchor=(1.05, 0.1), loc="center left",  
+              borderaxespad=0., title="Count", fontsize=8, title_fontsize=10, frameon=False)
+
+    cbar = fig.colorbar(sm, ax=ax, shrink=0.25, aspect=8, pad=0.03)  # Adjust pad to shift up
+    cbar.ax.set_anchor((0.5, 1))  # Adjust anchor (X, Y) to move it upwards
+    cbar.set_label("-log10(p-value)")
+    
+    # Adjust labels and title
+    ax.set_xlabel("Gene Ratio")
+    ax.set_ylabel("")
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
 
     return ax
