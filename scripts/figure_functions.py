@@ -20,7 +20,8 @@ from io import BytesIO
 from adjustText import adjust_text
 from typing import Dict, List, Optional, Set, Tuple
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib_venn import venn3_unweighted
+from matplotlib_venn import venn3
+import matplotlib_venn.layout
 
 def repel_umap_labels(
     adata, groupby, include=None, ax=None, adjust_kwargs=None, text_kwargs=None
@@ -235,7 +236,8 @@ def venn3_custom(set1: set, set2: set, set3: set, labels: Tuple[str], title: str
         fig, ax = plt.subplots(figsize=(6, 6))
     
     # Draw Venn diagram
-    venn = venn3_unweighted([set1, set2, set3], set_labels=labels)
+    venn = venn3([set1, set2, set3], set_labels=labels, 
+                            layout_algorithm=matplotlib_venn.layout.venn3.DefaultLayoutAlgorithm(fixed_subset_sizes=(1,1,1,1,1,1,1)), ax=ax)
     # 🔹 Apply gradient fill to each region
     for subset in ["100", "010", "001", "110", "101", "011", "111"]:
         patch = venn.get_patch_by_id(subset)
