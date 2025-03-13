@@ -64,16 +64,10 @@ annot_map = {
 adata.obs['cell_type'] = adata.obs['cell_type_fine'].str.extract(r'(' + '|'.join(annot_map.keys()) + ')')[0].map(annot_map)
 
 # %%
-adata_subset = adata[adata.obs['cell_type'].isin(['Endothelial', 'Fibroblast', 'Macrophage'])].copy()
+sc.tl.rank_genes_groups(adata, groupby="cell_type", method="wilcoxon")
 
 # %%
-del adata, adata_annot
-
-# %%
-sc.tl.rank_genes_groups(adata_subset, groupby="cell_type", method="wilcoxon")
-
-# %%
-dar_df = sc.get.rank_genes_groups_df(adata_subset, group=None)
+dar_df = sc.get.rank_genes_groups_df(adata, group=None)
 dar_df = dar_df.query("logfoldchanges > 1 and pvals_adj < 0.05").copy()
 
 # %%
@@ -157,8 +151,8 @@ for i, (data, celltype) in enumerate(zip([fibroblast, endothelial, macrophage], 
     axs[i].legend(wedges, legend_labels, title=celltype, loc="upper right", bbox_to_anchor=(1.6, 0.95), frameon=False, fontsize=10)
 
 
-# %%
-### venn diagram of DARs
+# %% [markdown]
+# ### venn diagram of DARs
 
 # %%
 dar_df
@@ -173,6 +167,33 @@ fig_func.venn3_custom(fibroblast_dar, endothelial_dar, macrophage_dar, labels=('
                               normalize_range=(0, 30000), title='')
 plt.show()
 
+# %% [markdown]
+# ## Figure 6c
+
 # %%
+# Create bed files for each cell type and background to input into HOMER
+
+# Background peaks
+background_peaks = adata.var[['Chromosome', 'Start', 'End', 'peak_id']].reset_index(drop=True).copy()
+background_bed = os.path.join(DATA_PATH, "homer_motifs/input/background.bed")
+background_peaks.to_csv(background_bed, sep="\t", header=False, index=False)
+
+# %%
+# Fibroblast peaks
+fibroblast_peaks = dar_df.query("group == 'Fibroblast'")[['chrom', 'start', 'end', 'names']].copy()
+fibroblast_bed = os.path.join(DATA_PATH, "homer_motifs/input/fibroblast.bed")
+fibroblast_peaks.to_csv(fibroblast_bed, sep="\t", header=False, index=False)
+
+# %%
+# Endothelial peaks
+endothelial_peaks = dar_df.query("group == 'Endothelial'")[['chrom', 'start', 'end', 'names']].copy()
+endothelial_bed = os.path.join(DATA_PATH, "homer_motifs/input/endothelial.bed")
+endothelial_peaks.to_csv(endothelial_bed, sep="\t", header=False, index=False)
+
+# %%
+# Macrophage peaks
+macrophage_peaks = dar_df.query("group == 'Macrophage'")[['chrom', 'start', 'end', 'names']].copy()
+macrophage_bed = os.path.join(DATA_PATH, "homer_motifs/input/macrophage.bed")
+macrophage_peaks.to_csv(macrophage_bed, sep="\t", header=False, index=False)
 
 # %%
