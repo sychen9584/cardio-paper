@@ -28,7 +28,7 @@ This repository provides a step-by-step Python implementation using the [scverse
 - [x] [Figure 3: Differentially expressed genes and cluster analysis during aging](figures/figure3.png)
 - [X] [Figure 4: Cell-cell communication during aging](figures/figure4.png)
 - [X] [Figure 5: Gene regulatory networks during aging by single-cell regulatory network inference and clustering (SCENIC)](figures/figure5.png)
-- [ ] Figure 6: Integrated single-cell ATAC seq epigenomic analysis of non-CM cells during aging
+- [X] [Figure 6: Integrated single-cell ATAC seq epigenomic analysis of non-CM cells during aging](figures/figure6.png)
       
 ## Comparison of tech stack
 
