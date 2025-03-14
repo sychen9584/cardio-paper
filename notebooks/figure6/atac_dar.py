@@ -64,6 +64,9 @@ annot_map = {
 adata.obs['cell_type'] = adata.obs['cell_type_fine'].str.extract(r'(' + '|'.join(annot_map.keys()) + ')')[0].map(annot_map)
 
 # %%
+adata.write_h5ad(os.path.join(DATA_PATH, "processed/scATAC_all.h5ad"))
+
+# %%
 sc.tl.rank_genes_groups(adata, groupby="cell_type", method="wilcoxon")
 
 # %%
@@ -179,21 +182,141 @@ background_bed = os.path.join(DATA_PATH, "homer_motifs/input/background.bed")
 background_peaks.to_csv(background_bed, sep="\t", header=False, index=False)
 
 # %%
-# Fibroblast peaks
-fibroblast_peaks = dar_df.query("group == 'Fibroblast'")[['chrom', 'start', 'end', 'names']].copy()
-fibroblast_bed = os.path.join(DATA_PATH, "homer_motifs/input/fibroblast.bed")
-fibroblast_peaks.to_csv(fibroblast_bed, sep="\t", header=False, index=False)
+# input peaks
+input_peaks = dar_df.query('group in ["Endothelial", "Fibroblast", "Macrophage"]')[['chrom', 'start', 'end', 'names']].drop_duplicates().copy()
+input_bed = os.path.join(DATA_PATH, "homer_motifs/input/input.bed")
+input_peaks.to_csv(input_bed, sep="\t", header=False, index=False)
 
 # %%
-# Endothelial peaks
-endothelial_peaks = dar_df.query("group == 'Endothelial'")[['chrom', 'start', 'end', 'names']].copy()
-endothelial_bed = os.path.join(DATA_PATH, "homer_motifs/input/endothelial.bed")
-endothelial_peaks.to_csv(endothelial_bed, sep="\t", header=False, index=False)
+# visualize svg motif logos
+Rfx6 = os.path.join(DATA_PATH, "homer_motifs/knownResults/known114.logo.svg")
+Irf8 = os.path.join(DATA_PATH, "homer_motifs/knownResults/known36.logo.svg")
+Stat4 = os.path.join(DATA_PATH, "homer_motifs/knownResults/known70.logo.svg")
+Atf3 = os.path.join(DATA_PATH, "homer_motifs/knownResults/known1.logo.svg")
 
 # %%
-# Macrophage peaks
-macrophage_peaks = dar_df.query("group == 'Macrophage'")[['chrom', 'start', 'end', 'names']].copy()
-macrophage_bed = os.path.join(DATA_PATH, "homer_motifs/input/macrophage.bed")
-macrophage_peaks.to_csv(macrophage_bed, sep="\t", header=False, index=False)
+import cairosvg
+cairosvg.svg2png(url=Rfx6, write_to=os.path.join(DATA_PATH, "homer_motifs/rfx6.png"))
+cairosvg.svg2png(url=Irf8, write_to=os.path.join(DATA_PATH, "homer_motifs/irf8.png"))
+cairosvg.svg2png(url=Stat4, write_to=os.path.join(DATA_PATH, "homer_motifs/stat4.png"))
+cairosvg.svg2png(url=Atf3, write_to=os.path.join(DATA_PATH, "homer_motifs/atf3.png"))
+
+# %% [markdown]
+# ## Try pychromVAR
+
+# %%
+from pyjaspar import jaspardb
+import pychromvar as pc
+
+# %%
+pc.get_genome("mm10", output_dir=os.path.join(DATA_PATH, "ref"))
+
+# %%
+valid_chroms = [f"chr{i}" for i in range(1, 20)] + ['chrX', 'chrY']
+adata = adata[:, adata.var['Chromosome'].isin(valid_chroms)].copy()
+
+# %%
+pc.add_peak_seq(adata, genome_file=os.path.join(DATA_PATH, "ref/mm10.fa"), delimiter="[:-]")
+
+# %%
+#  estimate GC bias per peak and get the backgrounds
+pc.add_gc_bias(adata)
+
+# %%
+adata.X = adata.layers["counts"].copy()
+
+# %%
+# Sum of reads per peak
+reads_per_peak = np.sum(adata.X, axis=0)
+# Find peaks with zero reads
+zero_read_peaks = np.where(reads_per_peak == 0)[1]  # Get indices
+print(f"Number of peaks with zero reads: {len(zero_read_peaks)}")
+
+# Keep only peaks with nonzero reads
+nonzero_peaks = np.where(reads_per_peak > 0)[1]  # Indices of nonzero peaks
+adata = adata[:, nonzero_peaks]  # Subset AnnData object
+
+# %%
+pc.get_bg_peaks(adata)
+
+# %%
+adata.varm['bg_peaks'].shape
+
+# %%
+# extract TF motifs and perform motif matching to identify TF binding sites
+jdb_obj = jaspardb(release='JASPAR2020')
+motifs = jdb_obj.fetch_motifs(
+    collection = 'CORE',
+    tax_group = ['vertebrates'])
+
+pc.match_motif(adata, motifs=motifs)
+
+# %%
+dev = pc.compute_deviations(adata)
+dev
+
+# %%
+adata = sc.read_h5ad(os.path.join(DATA_PATH, "processed/scATAC_all.h5ad"))
+chrom_deviations = sc.read_h5ad(os.path.join(DATA_PATH, "processed/chromvar_deviations.h5ad"))
+
+# %%
+chrom_deviations
+
+# %%
+df_dev = pd.DataFrame(chrom_deviations.X,
+                             columns=chrom_deviations.var_names,
+                             index=chrom_deviations.obs_names)
+
+# %%
+df_dev
+
+# %%
+df_dev['cell_type'] = adata.obs['cell_type'].values
+df_dev['month'] = adata.obs['month'].values
+
+# %%
+df_dev_long = df_dev.melt(id_vars=['cell_type', 'month'], var_name='motif', value_name='deviation')
+df_dev_long = df_dev_long.groupby(['cell_type', 'month', 'motif']).mean().reset_index()
+
+# %%
+df_dev_long['motif'] = df_dev_long['motif'].str.split('.').str[2]
+
+# %%
+motifs_to_plot = ['ATF3', "ATF6", "CEBPB", "CREB3L2", "CREM", "DBP", "E2F3", "ELF2", "ELK1", "ELK4", "ETS2", "ETV4", "EVX1",
+                  "FOXO4", "GMEB2", "HES1", "HMBOX1", "HLF", "IRF1", "IRF2", "IRF3", "IRF7", "IRF9", "KLF13", "MAFG:NFE2L1",
+                  "KLF4", "MXI1", "NFIA", "NFIB", "NFKB2", "NR1D1", "NRF1", "POU2F1", "RARB", "STAT1:STAT2", "STAT1", "STAT2",
+                  "TCF12", "TCF7L1", "TEAD1", "THAP1", "XBP1", "YY1", "ZBTB7A"]
+df_dev_long = df_dev_long.query("motif in @motifs_to_plot and cell_type in ['Fibroblast', 'Endothelial', 'Macrophage']").sort_values('motif').copy()
+
+# %%
+df_dev_long['cell_type'] = df_dev_long['cell_type'].astype(str)
+df_dev_long['cell_type'] = pd.Categorical(df_dev_long['cell_type'], categories=['Endothelial', "Fibroblast", 'Macrophage'], ordered=True)
+
+# %%
+month_colors = {"m3": "#98df8a", "m12":"#FFED6F", "m24":"#ff9896"}
+
+# %%
+g = sns.catplot(
+    data=df_dev_long,
+    x="motif", 
+    y="deviation", 
+    hue="month",
+    palette=month_colors,
+    row="cell_type", 
+    kind="bar",
+    height=6, 
+    aspect=3.2, 
+    dodge=True  # Enables dodging for hue
+)
+
+g.set_titles("{row_name}", fontweight='bold', fontsize=14)
+g.set_axis_labels("Motif", "")
+g.fig.text(0.01, 0.5, "Average Motif Activity", va='center', rotation=90, fontsize=12)
+
+for ax in g.axes.flat:
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+
+# %%
+df_dev_long.to_csv(os.path.join(DATA_PATH, "processed/motif_activity.csv"), index=False)
 
 # %%

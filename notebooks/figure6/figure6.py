@@ -70,6 +70,50 @@ macrophage_dar = set(dar_df[dar_df['group'] == 'Macrophage']['names'].values)
 fibroblast_dar = set(dar_df[dar_df['group'] == 'Fibroblast']['names'].values)
 endothelial_dar = set(dar_df[dar_df['group'] == 'Endothelial']['names'].values)
 
+# %% [markdown]
+# ### Figure 6C
+
+# %%
+rfx6 = plt.imread(f"{DATA_PATH}/homer_motifs/rfx6.png")
+irf8 = plt.imread(f"{DATA_PATH}/homer_motifs/irf8.png")
+stat4 = plt.imread(f"{DATA_PATH}/homer_motifs/stat4.png")
+atf3 = plt.imread(f"{DATA_PATH}/homer_motifs/atf3.png")
+
+# %% [markdown]
+# ### Figure 6D   
+
+# %%
+df_dev_long = pd.read_csv(os.path.join(DATA_PATH, "processed/motif_activity.csv"))
+
+# %%
+month_colors = {"m3": "#98df8a", "m12":"#FFED6F", "m24":"#ff9896"}
+df_dev_long['cell_type'] = pd.Categorical(df_dev_long['cell_type'], categories=['Endothelial', "Fibroblast", 'Macrophage'], ordered=True)
+g = sns.catplot(
+    data=df_dev_long,
+    x="motif", 
+    y="deviation", 
+    hue="month",
+    palette=month_colors,
+    row="cell_type",
+    sharey=False,
+    kind="bar",
+    height=4, 
+    aspect=5.5, 
+    dodge=True  # Enables dodging for hue
+)
+
+g.set_titles("{row_name}")
+g.set_axis_labels("Motif", "")
+g.fig.text(0.01, 0.5, "Average Motif Activity", va='center', rotation=90, fontsize=12)
+
+for ax in g.axes.flat:
+    ax.set_title(ax.get_title(), fontsize=14, fontweight="bold", bbox=dict(facecolor="white", edgecolor="black", boxstyle="round,pad=0.3"))
+    ax.grid(False)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
+
+# %%
+plt.show()
+
 # %%
 with plt.rc_context({"figure.figsize": (12, 14), "figure.dpi": 150, "figure.frameon": True, 
                      "axes.labelsize": 10, "axes.titlesize": 10,"xtick.labelsize": 10, 
@@ -81,6 +125,7 @@ with plt.rc_context({"figure.figsize": (12, 14), "figure.dpi": 150, "figure.fram
         ABB
         ABB
         ACC
+        DDD
         DDD
         DDD
         """
@@ -108,6 +153,29 @@ with plt.rc_context({"figure.figsize": (12, 14), "figure.dpi": 150, "figure.fram
     fig_func.venn3_custom(fibroblast_dar, endothelial_dar, macrophage_dar, labels=('Fibroblast', 'Endothelial', 'Macrophage'), 
                               normalize_range=(0, 30000), title='', ax=ax_dict['B'])
     
+    # C: Motif logos
+    motifs = {"Rfx6": rfx6, "Irf8": irf8, "Stat4": stat4, "Atf3": atf3}
+    grid_positions = [(0, 0), (0, 1), (1, 0), (1, 1)]  # (row, col) format
+    for i, (motif_name, motif_image) in enumerate(motifs.items()):
+        row, col = grid_positions[i]  # Get grid position
+        x_offset = 0.05 + col * 0.45   # Adjust x based on column index
+        y_offset = 0.55 - row * 0.45   # Adjust y based on row index
+
+        # Create inset axis
+        inset_ax = ax_dict['C'].inset_axes([x_offset, y_offset, 0.4, 0.4])  # [x, y, width, height]
+        inset_ax.imshow(motif_image)
+        inset_ax.set_title(motif_name, fontsize=14, fontweight='bold')
+        inset_ax.axis("off")
+        
+    ax_dict['C'].set_xticks([])
+    ax_dict['C'].set_yticks([])
+    ax_dict['C'].grid(False)
+    ax_dict['C'].set_frame_on(False)
+    
+    ax_dict["D"].imshow(g.fig.canvas.buffer_rgba(), aspect='auto')  # Embed catplot into the subplot
+    # Hide the default axes of ax_dict['D']
+    ax_dict["D"].axis("off")
+    
     label_positions = {
         "A": (-0.1, 1.05),
         "B": (-0.05, 1.1),
@@ -125,9 +193,6 @@ with plt.rc_context({"figure.figsize": (12, 14), "figure.dpi": 150, "figure.fram
     plt.show()
 
 # %%
-from matplotlib_venn import venn3_unweighted
-
-# %%
-# ?venn3_unweighted
+fig.savefig(os.path.join(FIGURE_PATH, "figure6.png"), bbox_inches='tight', dpi=300)
 
 # %%
