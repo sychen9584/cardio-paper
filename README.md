@@ -48,4 +48,4 @@ This repository provides a step-by-step Python implementation using the [scverse
 | TF motif analysis | Signac | HOMER + pychromVAR |
 
 ## References
-Song, Yiran, et al. "Decoding aging in the heart via single cell dual omics of non-cardiomyocytes." Iscience 27.12 (2024).
+Song, Yiran, et al. "Decoding aging in the heart via single cell dual omics of non-cardiomyocytes." iScience 27.12 (2024).
