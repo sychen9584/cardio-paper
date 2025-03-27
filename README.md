@@ -37,12 +37,15 @@ This repository provides a step-by-step Python implementation using the [scverse
 | scRNA-seq data structure + processing  | Seurat | Scanpy |
 | scATAC-seq data structure + processing  | Signac | Muon + Custom codes |
 | Label transfer | Signac | scANVI | 
-| Visualization | ggplot2 | Matplotlib + Seaborn |
+| General Vis. | ggplot2 | Matplotlib + Seaborn |
+| Heatmap Vis. | ComplexHeatmap | pyComplexHeatmap |
+| Venn diagram | VennDiagram | matplotlib-venn |
 | Perturbation analysis | Augur | pertpy |
 | Gene set enrichment | AUCell | decoupler |
 | Gene Ontology | clusterProfiler | gprofiler-official |
-
-**TODO**: to be expanded
+| Cell-cell communication | CellChat | liana |
+| GRN inference | SCENIC | pySCENIC |
+| TF motif analysis | Signac | HOMER + pychromVAR |
 
 ## References
 Song, Yiran, et al. "Decoding aging in the heart via single cell dual omics of non-cardiomyocytes." Iscience 27.12 (2024).
