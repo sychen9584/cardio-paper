@@ -8,8 +8,8 @@
 - **scRNA_pilot_workflow.py**: Example notebook for processing a single scRNA-seq sample
 - **/scripts/preprocessing.py**: Wrapper functions for preprocessing a single sample.
 
-> sc -> Scanpy
-> ad -> Anndata
+> sc -> Scanpy <br>
+> ad -> Anndata <br>
 > dc -> decoupler
 
 ```mermaid
