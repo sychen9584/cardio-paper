@@ -5,18 +5,41 @@
 -  **generate_feature_tsv.py**: Recreating features.tsv files from reference genome annotations due to them not being included in GEO repository
 # scRNA-seq
 ## Single sample
-- **scRNA_pilot_workflow.py**: Example notebook for processing a single scRNA-seq sampel
-- **/scripts/preprocessing.py**: Wrapper functions for processing a single sample.
+- **scRNA_pilot_workflow.py**: Example notebook for processing a single scRNA-seq sample
+- **/scripts/preprocessing.py**: Wrapper functions for preprocessing a single sample.
+
+> sc -> Scanpy
+> ad -> Anndata
+> dc -> decoupler
 
 ```mermaid
 graph TD
 A(Load in adata object) -- sc.read_10x_mtx --> B(QC filters)
 B -- sc.pp.calculate_qc_metrics <br> sc.pp.filter_cells --> C(Doublet Removal)
 C -- sc.pp.scrublet <br> sc.pl.scrublet_score_distribution --> D(Normalization)
+D -- sc.pp.normalize_total <br> sc.pp.lop1p --> E(Preprocessed sample)
 ```
-
-## Multi sample
-
+## Multi samples
+- **scRNA_processing.py**: Notebook for merging all scRNA-seq samples and performing downstream tasks like dimensional reduction, clustering, cell type annotations, and identification of DEGs.  
+```mermaid
+graph TD
+A1(3month sample1) --> B1(Processed 3MS1)
+A2(12month sample2) -- preprocess using workflow detailed above for single sample --> B2(Processed 12MS2)
+A3(24month sample1) --> B3(Processed 24MS1)
+B1 --> C(Merged adata object)
+B2 -- ad.experimental.concat_on_disk --> C
+B3 --> C
+C --> D(Identify highly variable genes)
+D -- sc.pp.highly_variable_genes --> E(Scale data)
+E -- sc.pp.scale --> F("Principal component analysis (PCA)")
+F -- sc.pp.pca --> G(Construct neighborhood graph)
+G -- sc.pp.neighbors --> H(UMAP visualization)
+G -- sc.pp.neighbors --> I(Leiden clustering)
+H -- sc.tl.umap <br> sc.pl.umap --> J(Cell type annotation)
+I -- sc.tl.leiden --> J
+J -- dc.run_mlm --> K(Differentially expressed genes)
+K -- sc.tl.rank_genes_group <br> sc.tl.filter_rank_genes_group --> L(Save as h5ad file)
+```
 # scATAC-seq
 ## Single sample
 ## Multi sample
