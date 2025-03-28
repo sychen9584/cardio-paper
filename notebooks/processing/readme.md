@@ -49,7 +49,8 @@ K -- sc.tl.rank_genes_group <br> sc.tl.filter_rank_genes_group --> L(Save as h5a
 > sc -> Scanpy <br>
 > ad -> Anndata <br>
 > mu -> muon <br>
-> ac -> mu.atac
+> ac -> mu.atac <br>
+> scvi -> scvi-tools
 
 ```mermaid
 graph TD
@@ -69,5 +70,44 @@ F2 -- ac.tl.nucleosome_signal <br> mu.pl.histogram --> G
 F3 -- ac.tl.tss_enrichment <br> ac.pl.tss_enrichment --> G
 G -- mu.pp.filter_obs --> H(Preprocessed sample)
 ```
-
 ## Multi samples
+- **scATAC_processing.py**: Notebook for merging all scATAC-seq samples and performing downstream tasks like dimensional reduction, clustering, and cell type annotation transfers.
+- **scanvi_scatac_annot.py**: Notebook for annotating cell types in scATAC-seq data by learning and transfering labels from scRNA-seq data using scVI and scANVI packages. This notebook was ran on Google Colab to take advantage of GPU computing.
+- **/scripts/merge_fragment_files.sh**: Bash script for merging all fragment files from individual samples into one prior to merging their adata objects.
+
+### Merging and visualization of scATAC-seq data
+```mermaid
+graph TD
+A1(3month sample1) --> B1(Processed 3MS1)
+A2(12month sample2) -- preprocess using workflow detailed above for single sample --> B2(Processed 12MS2)
+A3(24month sample1) --> B3(Processed 24MS1)
+B1 --> C1(Unified 3MS1)
+B2 -- Create a unified peak set for all samples using pyranges  --> C2(Unified 12MS2)
+B3 --> C3(Unified 24MS1)
+C1 --> D
+C2 -- ad.experimental.concat_on_disk --> D(Merged adata object)
+C3 --> D
+D --> E(TF-IDF normalization)
+E -- ac.pp.tfidf --> F("Latent semantic indexing embedding (LSI)")
+F -- sc.tl.lsi --> G(Harmony batch correction)
+G -- sc.external.pp.harmony_integrate --> H(Construct neighborhood graph)
+H -- sc.pp.neighbors --> I1(UMAP visualization)
+H -- sc.pp.neighbors --> I2(Leiden clustering)
+I1 -- sc.tl.umap <br> sc.pl.umap --> J
+I2 -- sc.tl.leiden --> J(Save as h5ad file) 
+```
+### Computation of gene activity matrix and cell type label transfer from scRNA-seq data
+Basically transforming scATAC-seq data from *cell X peak matrix* to *cell X gene matrix* so it can be compared directly to scRNA-seq data for label transfer. 
+```mermaid
+graph TD
+A(Merged adata object) --> B(Compute gene activity matrix)
+B -- Custom function in scatac_preprocessing.py <br> that group counts in unified peaks to their nearest genes <br> and return a new adata object --> C(Gene activity adata object)
+C --> D(Normalization)
+D -- sc.pp.normalize_total <br> sc.pp.log1p --> E1(scATAC-seq object)
+E1 --> F(Subset to only HVGs and concat as one adata object)
+E2(scRNA-seq data object) --> F
+F -- ad.concat --> G(Train scVI model jointly on scRNA and scATAC data)
+G -- "vae=scvi.model.SCVI() <br> vae.train()" --> H(Train scANVI model based on scVI weights)
+H -- "scanvi=scvi.model.SCANVI.from_scvi_model <br> scanvi.train()" --> I(Predict cell type labels for scATAC-seq cells)
+I -- "scanvi.predict()" --> J(Save labels to h5ad)
+```
