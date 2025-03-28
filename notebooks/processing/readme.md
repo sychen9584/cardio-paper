@@ -8,8 +8,8 @@
 - **scRNA_pilot_workflow.py**: Example notebook for processing a single scRNA-seq sample
 - **/scripts/preprocessing.py**: Wrapper functions for preprocessing a single sample.
 
-> sc -> Scanpy <br>
-> ad -> Anndata <br>
+> sc -> Scanpy
+> ad -> Anndata
 > dc -> decoupler
 
 ```mermaid
@@ -42,4 +42,32 @@ K -- sc.tl.rank_genes_group <br> sc.tl.filter_rank_genes_group --> L(Save as h5a
 ```
 # scATAC-seq
 ## Single sample
-## Multi sample
+- **scATAC_pilot_workflow.py**: Example notebook for processing a single scATAC-seq sample
+- **/scripts/scatac_preprocessing.py**: Wrapper functions for preprocessing a single scATAC-seq sample.
+- **/scripts/scDblFinder_script.R**: R script for running scDblFinder
+
+> sc -> Scanpy <br>
+> ad -> Anndata <br>
+> mu -> muon <br>
+> ac -> mu.atac
+
+```mermaid
+graph TD
+A1("matrix (.mtx)") --> B(adata object)
+A2("peaks (.bed)") -- ad.AnnData --> B
+A3("barcodes (.tsv)") --> B
+B --> C1(Add fragment files)
+B --> C2(Add peak annotations)
+C1 -- ac.tools.locate_fragments --> D(Doublet Removal)
+C2 -- "annotatePeaks.pl (HOMER) <br> ac.tools.add_peak_annotation" --> D
+D -- "scDblFinder (R)" --> E(Quality Control Metrics)
+E --> F1(General QC)
+E --> F2(Nucleosome Signal)
+E --> F3(TSS Enrichment)
+F1 -- sc.pp.calculate_qc_metrics --> G(Filtering)
+F2 -- ac.tl.nucleosome_signal <br> mu.pl.histogram --> G
+F3 -- ac.tl.tss_enrichment <br> ac.pl.tss_enrichment --> G
+G -- mu.pp.filter_obs --> H(Preprocessed sample)
+```
+
+## Multi samples
