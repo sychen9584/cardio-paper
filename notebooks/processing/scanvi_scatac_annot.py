@@ -122,7 +122,7 @@ adata_atac.obs["predicted_labels"] = adata_combined.obs["predicted_labels"].loc[
 sc.pl.umap(adata_atac, color='predicted_labels')
 
 # %% [markdown]
-# # Save annnotaed scATAC-seq object and model weights
+# # Save annnotated scATAC-seq object and model weights
 
 # %% id="hG8_1Rs_fXXH"
 atac_path = "./drive/MyDrive/scATAC_all_gene_activity.h5ad"
