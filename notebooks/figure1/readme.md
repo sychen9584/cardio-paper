@@ -12,4 +12,4 @@
 | **1E** | Stacked barplot of coarse annotations | Cell type proportions | `matplotlib.pyplot.bar()` |
 | **1F** | Stacked barplot of fine annotations | Cell type proportions | `matplotlib.pyplot.bar()` |
 | **1G** | Augur: perturbation AUC scores on UMAPs | Perturbation analysis | `pertpy` → *augur_analysis.ipynb* |
-| **1H** | Scatterplot: AUGUR scores (3–12 mo vs. 12–24 mo) | Temporal comparison | `matplotlib.pyplot.scatter()` |
+| **1H** | Scatterplot: AUGUR scores (3–12 mo vs. 12–24 mo) | Temporal comparison | `seaborn.scatterplot()` |
